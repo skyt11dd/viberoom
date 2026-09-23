@@ -36,7 +36,7 @@ export default function RoomPage() {
   const roomId = typeof id === 'string' ? id : id?.[0] || '';
   const { user } = useAuth();
   const { socket, connected } = useSocket();
-  const { isMuted, toggleMute } = useVoice();
+  const { isMuted, toggleMute, isMicInitializing, leaveVoiceRoom, permissionError } = useVoice();
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,8 +56,15 @@ export default function RoomPage() {
   const [invitedFriends, setInvitedFriends] = useState<{ [id: string]: boolean }>({});
 
   const providerRef = useRef<YouTubeProvider | null>(null);
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    if (permissionError) {
+      setToastMessage(permissionError);
+      const timer = setTimeout(() => setToastMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [permissionError]);
   const [chatInput, setChatInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +123,7 @@ export default function RoomPage() {
     }
 
     return () => {
+      leaveVoiceRoom();
       if (socket) {
         socket.emit('room:leave', { roomId });
         socket.off('room:resync');
@@ -125,7 +133,7 @@ export default function RoomPage() {
         socket.off('chat:reaction');
       }
     };
-  }, [socket, connected, room, roomId]);
+  }, [socket, connected, room, roomId, leaveVoiceRoom]);
 
   useEffect(() => {
     if (activeTab === 'chat') {
@@ -347,14 +355,27 @@ export default function RoomPage() {
           {/* Voice Mic Toggle */}
           <button
             onClick={toggleMute}
+            disabled={isMicInitializing}
             className={`p-2 rounded-full text-xs transition active:scale-90 flex items-center justify-center border ${
-              isMuted
+              isMicInitializing
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 cursor-wait'
+                : isMuted
                 ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
                 : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 ring-2 ring-emerald-500/30'
             }`}
-            title={isMuted ? 'Увімкнути мікрофон' : 'Вимкнути мікрофон'}
+            title={
+              isMicInitializing
+                ? 'Запит дозволу на мікрофон...'
+                : isMuted
+                ? 'Увімкнути мікрофон'
+                : 'Вимкнути мікрофон'
+            }
           >
-            <span className="text-sm leading-none">{isMuted ? '🔇' : '🎙️'}</span>
+            {isMicInitializing ? (
+              <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span className="text-sm leading-none">{isMuted ? '🔇' : '🎙️'}</span>
+            )}
           </button>
 
           {/* Members Badge */}
