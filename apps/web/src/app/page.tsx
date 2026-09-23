@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import WebApp from '@twa-dev/sdk';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,12 +11,17 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && WebApp.initDataUnsafe?.start_param) {
-      const startParam = WebApp.initDataUnsafe.start_param;
-      if (startParam.startsWith('room_')) {
-        const roomId = startParam.replace('room_', '');
-        router.push(`/rooms/${roomId}`);
-      }
+    if (typeof window !== 'undefined') {
+      import('@twa-dev/sdk').then((module) => {
+        const WebApp = module.default;
+        if (WebApp.initDataUnsafe?.start_param) {
+          const startParam = WebApp.initDataUnsafe.start_param;
+          if (startParam.startsWith('room_')) {
+            const roomId = startParam.replace('room_', '');
+            router.push(`/rooms/${roomId}`);
+          }
+        }
+      });
     }
   }, [router]);
 

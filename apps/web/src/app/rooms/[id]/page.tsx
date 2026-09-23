@@ -9,7 +9,6 @@ import { useParams } from 'next/navigation';
 import { YouTubeProvider } from '../../../lib/providers/YouTubeProvider';
 import { PlaybackState } from '@viberoom/shared';
 import { motion, AnimatePresence } from 'framer-motion';
-import WebApp from '@twa-dev/sdk';
 
 interface ChatMessage {
   id: string;
@@ -199,17 +198,20 @@ export default function RoomPage() {
             </div>
           </div>
           <button 
-            onClick={() => {
-              if (typeof window !== 'undefined' && WebApp.initData) {
-                const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot'; // Replace with actual bot username
-                const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
-                const text = encodeURIComponent('Join my VibeRoom to watch videos together! 🍿');
-                WebApp.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
-              } else {
-                // Fallback for normal browser
-                const fallbackLink = `https://t.me/share/url?url=${window.location.href}`;
-                window.open(fallbackLink, '_blank');
+            onClick={async () => {
+              if (typeof window !== 'undefined') {
+                const WebApp = (await import('@twa-dev/sdk')).default;
+                if (WebApp.initData) {
+                  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot'; // Replace with actual bot username
+                  const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
+                  const text = encodeURIComponent('Join my VibeRoom to watch videos together! 🍿');
+                  WebApp.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
+                  return;
+                }
               }
+              // Fallback for normal browser
+              const fallbackLink = `https://t.me/share/url?url=${window.location.href}`;
+              window.open(fallbackLink, '_blank');
             }}
             className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded font-medium transition"
           >
