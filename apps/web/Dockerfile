@@ -1,5 +1,8 @@
 FROM node:20-alpine AS base
 
+# Install openssl for Prisma
+RUN apk add --no-cache openssl
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 FROM base AS builder
