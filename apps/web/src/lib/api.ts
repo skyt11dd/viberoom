@@ -12,19 +12,28 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_URL}${endpoint}`;
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      localStorage.removeItem('viberoom_token');
-      // Optionally trigger a logout event here
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('viberoom_token');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `API ${response.status}`);
     }
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'API Error');
-  }
 
-  return response.json();
+    return response.json();
+  } catch (err: any) {
+    // Add the URL to the error so we can debug
+    if (err.message === 'Load failed' || err.message === 'Failed to fetch') {
+      throw new Error(`Cannot reach API (${API_URL})`);
+    }
+    throw err;
+  }
 }
