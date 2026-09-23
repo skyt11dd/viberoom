@@ -15,7 +15,7 @@ COPY apps/api/ ./apps/api/
 
 # Install dependencies and build
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @viberoom/database db:generate
+RUN pnpm --filter @viberoom/database generate
 RUN pnpm --filter api build
 
 FROM base AS runner
