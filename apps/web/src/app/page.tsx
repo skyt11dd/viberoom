@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
   const router = useRouter();
-  const { user, loading: authLoading, error } = useAuth();
+  const { user, loading: authLoading, error, isTelegram, retryAuth } = useAuth();
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -152,26 +152,50 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <div style={{ textAlign: 'center', maxWidth: 280 }}>
-            <p style={{
-              fontSize: 14,
-              color: 'var(--text-hint)',
-              margin: '0 0 8px 0',
-              lineHeight: 1.5,
-            }}>
-              Open this app via Telegram bot to get started
-            </p>
-            {error && (
-              <p style={{
-                fontSize: 12,
-                color: '#ff6b6b',
-                margin: '12px 0 0 0',
-                padding: '8px 12px',
-                background: 'rgba(255,107,107,0.1)',
-                borderRadius: 8,
-                wordBreak: 'break-word',
+          <div style={{ textAlign: 'center', maxWidth: 300, width: '100%' }}>
+            {error ? (
+              <div style={{
+                background: 'rgba(255, 107, 107, 0.08)',
+                border: '1px solid rgba(255, 107, 107, 0.2)',
+                borderRadius: 12,
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
               }}>
-                {error}
+                <p style={{
+                  fontSize: 13,
+                  color: '#ff6b6b',
+                  margin: 0,
+                  lineHeight: 1.4,
+                  wordBreak: 'break-word',
+                }}>
+                  {error}
+                </p>
+                <button
+                  onClick={() => retryAuth()}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: 'var(--button-text)',
+                    background: 'var(--button)',
+                    border: 'none',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Try Again
+                </button>
+              </div>
+            ) : (
+              <p style={{
+                fontSize: 14,
+                color: 'var(--text-hint)',
+                margin: 0,
+                lineHeight: 1.5,
+              }}>
+                Open this app via Telegram bot to get started
               </p>
             )}
           </div>

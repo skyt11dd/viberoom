@@ -10,7 +10,10 @@ export class BotService {
 
   @Start()
   async startCommand(@Ctx() ctx: Context) {
-    const webAppUrl = this.configService.get<string>('FRONTEND_URL') || 'https://example.com';
+    const webAppUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
+      'https://example.com';
     // Deep links pass args, e.g. /start room_123 -> args = "room_123"
     // @ts-ignore - context payload exists in telegraf StartCtx
     const args = ctx.payload;
