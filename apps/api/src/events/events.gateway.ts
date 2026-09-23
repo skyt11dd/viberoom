@@ -66,36 +66,84 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = client.data.user;
 
     if (roomId && user) {
-      try {
-        const member = await this.prisma.roomMember.findUnique({
-          where: { roomId_userId: { roomId, userId: user.id } },
+      await this.handleMemberExit(roomId, user, client.id);
+    }
+  }
+
+  private async handleMemberExit(roomId: string, user: any, socketId: string) {
+    if (!roomId || !user) return;
+
+    try {
+      // 1. Remove this user from the room's members
+      await this.prisma.roomMember.deleteMany({
+        where: { roomId, userId: user.id },
+      }).catch(() => {});
+
+      // 2. Fetch remaining members in the room
+      const remainingMembers = await this.prisma.roomMember.findMany({
+        where: { roomId },
+        include: { user: true },
+      });
+
+      // 3. If NO members left in room: DELETE THE ROOM IMMEDIATELY
+      if (remainingMembers.length === 0) {
+        this.logger.log(`Room ${roomId} has 0 members left. Deleting room immediately.`);
+        await this.prisma.message.deleteMany({ where: { roomId } }).catch(() => {});
+        await this.prisma.invitation.deleteMany({ where: { roomId } }).catch(() => {});
+        await this.prisma.room.delete({ where: { id: roomId } }).catch(() => {});
+        return;
+      }
+
+      // 4. If there ARE remaining members: check if leaving user was the OWNER
+      const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+      if (room && room.ownerId === user.id) {
+        // Pick a random remaining member to become the new OWNER
+        const randomIndex = Math.floor(Math.random() * remainingMembers.length);
+        const newHost = remainingMembers[randomIndex];
+
+        await this.prisma.$transaction([
+          this.prisma.room.update({
+            where: { id: roomId },
+            data: { ownerId: newHost.userId, updatedAt: new Date() },
+          }),
+          this.prisma.roomMember.update({
+            where: { id: newHost.id },
+            data: { role: 'OWNER' },
+          }),
+        ]);
+
+        this.logger.log(
+          `Host ${user.displayName} left room ${roomId}. Transferred host to ${newHost.user.displayName}`,
+        );
+
+        // Re-fetch members to reflect role update
+        const updatedMembers = await this.prisma.roomMember.findMany({
+          where: { roomId },
+          include: { user: true },
         });
 
-        // If member is not OWNER, remove on disconnect
-        if (member && member.role !== 'OWNER') {
-          await this.prisma.roomMember.delete({ where: { id: member.id } }).catch(() => {});
-        }
-
-        // Touch room updatedAt to track activity
+        this.server.to(roomId).emit('room:host_transferred', {
+          newHostId: newHost.userId,
+          newHostName: newHost.user.displayName,
+        });
+        this.server.to(roomId).emit('room:members_updated', updatedMembers);
+      } else {
+        // Just touch updatedAt and broadcast updated members
         await this.prisma.room.update({
           where: { id: roomId },
           data: { updatedAt: new Date() },
         }).catch(() => {});
 
-        const members = await this.prisma.roomMember.findMany({
-          where: { roomId },
-          include: { user: true },
-        });
-
-        this.server.to(roomId).emit('room:members_updated', members);
-        this.server.to(roomId).emit('room:member_left', {
-          socketId: client.id,
-          userId: user.id,
-          roomId,
-        });
-      } catch (err: any) {
-        this.logger.error(`Error handling disconnect for room ${roomId}: ${err.message}`);
+        this.server.to(roomId).emit('room:members_updated', remainingMembers);
       }
+
+      this.server.to(roomId).emit('room:member_left', {
+        socketId,
+        userId: user.id,
+        roomId,
+      });
+    } catch (err: any) {
+      this.logger.error(`Error in handleMemberExit for room ${roomId}: ${err.message}`);
     }
   }
 
@@ -111,14 +159,26 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = client.data.user;
     if (user) {
       try {
-        // Ensure user is in room in database
+        const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+        if (!room) {
+          client.emit('room:not_found');
+          return;
+        }
+
+        const isOwner = room.ownerId === user.id;
+
+        // Ensure user is registered as member in database
         const existingMember = await this.prisma.roomMember.findUnique({
           where: { roomId_userId: { roomId, userId: user.id } },
         });
 
         if (!existingMember) {
           await this.prisma.roomMember.create({
-            data: { roomId, userId: user.id, role: 'MEMBER' },
+            data: {
+              roomId,
+              userId: user.id,
+              role: isOwner ? 'OWNER' : 'MEMBER',
+            },
           }).catch(() => {});
         }
 
@@ -164,34 +224,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const user = client.data.user;
     if (user) {
-      try {
-        const member = await this.prisma.roomMember.findUnique({
-          where: { roomId_userId: { roomId, userId: user.id } },
-        });
-
-        if (member && member.role !== 'OWNER') {
-          await this.prisma.roomMember.delete({ where: { id: member.id } }).catch(() => {});
-        }
-
-        await this.prisma.room.update({
-          where: { id: roomId },
-          data: { updatedAt: new Date() },
-        }).catch(() => {});
-
-        const members = await this.prisma.roomMember.findMany({
-          where: { roomId },
-          include: { user: true },
-        });
-
-        this.server.to(roomId).emit('room:members_updated', members);
-        this.server.to(roomId).emit('room:member_left', {
-          socketId: client.id,
-          userId: user.id,
-          roomId,
-        });
-      } catch (err: any) {
-        this.logger.error(`Error in handleRoomLeave: ${err.message}`);
-      }
+      await this.handleMemberExit(roomId, user, client.id);
     }
   }
 

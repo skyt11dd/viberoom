@@ -297,8 +297,8 @@ export default function Home() {
             {/* Quick Action: Create Room Banner */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-violet-900/40 border border-purple-500/20 mb-5 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-white mb-0.5">Власна вечірка</h3>
-                <p className="text-[11px] text-white/60">Дивіться будь-яке відео разом з друзями</p>
+                <h3 className="text-sm font-bold text-white mb-0.5">Створити кімнату</h3>
+                <p className="text-[11px] text-white/60">Дивіться відео на YouTube синхронно з друзями</p>
               </div>
               <button
                 onClick={() => {
@@ -307,7 +307,7 @@ export default function Home() {
                 }}
                 className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shrink-0 shadow-md"
               >
-                🎉 Створити
+                ✨ Створити
               </button>
             </div>
 

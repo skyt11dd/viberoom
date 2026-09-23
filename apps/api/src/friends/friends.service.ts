@@ -9,8 +9,12 @@ export class FriendsService {
     private botService: BotService,
   ) {}
 
+  private get friendshipDelegate() {
+    return (this.prisma as any).friendship;
+  }
+
   async getFriends(userId: string) {
-    const friendships = await this.prisma.friendship.findMany({
+    const friendships = await this.friendshipDelegate.findMany({
       where: {
         userId,
       },
@@ -42,12 +46,12 @@ export class FriendsService {
       },
     });
 
-    return friendships.map((f) => ({
+    return (friendships || []).map((f: any) => ({
       id: f.friend.id,
       displayName: f.friend.displayName,
       username: f.friend.username,
       avatarUrl: f.friend.avatarUrl,
-      currentRoom: f.friend.memberships[0]?.room || null,
+      currentRoom: f.friend.memberships?.[0]?.room || null,
       friendSince: f.createdAt,
     }));
   }
@@ -67,7 +71,7 @@ export class FriendsService {
 
     // Mutual friendship: add in both directions
     await this.prisma.$transaction([
-      this.prisma.friendship.upsert({
+      this.friendshipDelegate.upsert({
         where: {
           userId_friendId: {
             userId,
@@ -80,7 +84,7 @@ export class FriendsService {
         },
         update: {},
       }),
-      this.prisma.friendship.upsert({
+      this.friendshipDelegate.upsert({
         where: {
           userId_friendId: {
             userId: targetUserId,
@@ -99,7 +103,7 @@ export class FriendsService {
   }
 
   async removeFriend(userId: string, targetUserId: string) {
-    await this.prisma.friendship.deleteMany({
+    await this.friendshipDelegate.deleteMany({
       where: {
         OR: [
           { userId, friendId: targetUserId },
@@ -112,7 +116,7 @@ export class FriendsService {
   }
 
   async isFriend(userId: string, targetUserId: string): Promise<boolean> {
-    const friendship = await this.prisma.friendship.findUnique({
+    const friendship = await this.friendshipDelegate.findUnique({
       where: {
         userId_friendId: {
           userId,
