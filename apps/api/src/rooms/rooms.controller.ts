@@ -17,6 +17,16 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
+  @Get()
+  findAll() {
+    return this.roomsService.findAllActive();
+  }
+
+  @Get('stats/me')
+  getStats(@Request() req: any) {
+    return this.roomsService.getUserStats(req.user.id);
+  }
+
   @Post()
   create(@Request() req: any, @Body() createRoomDto: CreateRoomDto) {
     return this.roomsService.create(req.user.id, createRoomDto);

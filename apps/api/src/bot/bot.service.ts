@@ -18,25 +18,24 @@ export class BotService {
     // @ts-ignore - context payload exists in telegraf StartCtx
     const args = ctx.payload;
 
-    let message = '🎬 *Welcome to VibeRoom!*\n\nWatch videos together with your friends in real-time.\n\nTap the button below to open the app!';
-    let buttonLabel = '🚀 Open VibeRoom';
+    let message =
+      '🎬 *Ласкаво просимо до VIBEROOM!*\n\n' +
+      'Дивіться відео разом із друзями в реальному часі, слухайте музику та спілкуйтеся голосом.\n\n' +
+      'Натисніть кнопку нижче, щоб відкрити додаток!';
+    let buttonLabel = '🚀 Відкрити VIBEROOM';
     let url = webAppUrl;
 
     if (args && args.startsWith('room_')) {
-      message = '🍿 *You have been invited to a VibeRoom!*\n\nTap the button below to join the room and watch together.';
-      buttonLabel = '🎉 Join Room';
-      // Pass start_param so the app knows which room to open
+      message =
+        '🍿 *Вас запросили до кімнати у VIBEROOM!*\n\n' +
+        'Приєднуйтесь до спільного перегляду просто зараз.';
+      buttonLabel = '🎉 Приєднатися до кімнати';
       url = `${webAppUrl}?startapp=${args}`;
     }
 
-    await ctx.reply(
-      message,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          Markup.button.webApp(buttonLabel, url),
-        ]),
-      }
-    );
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([Markup.button.webApp(buttonLabel, url)]),
+    });
   }
 }

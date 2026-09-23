@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from '../contexts/AuthContext';
+import { SocketProvider } from '../contexts/SocketContext';
+import { VoiceProvider } from '../contexts/VoiceContext';
+import Script from 'next/script';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,19 +17,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VibeRoom",
-  description: "Watch videos together with your friends in real-time",
+  title: "VIBEROOM - Дивись відео разом",
+  description: "Дивіться відео разом із друзями в реальному часі у VIBEROOM",
 };
-
-import { AuthProvider } from '../contexts/AuthContext';
-import { SocketProvider } from '../contexts/SocketContext';
-import { VoiceProvider } from '../contexts/VoiceContext';
-import Script from 'next/script';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="en"
+      lang="uk"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>

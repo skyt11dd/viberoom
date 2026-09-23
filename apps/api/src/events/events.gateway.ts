@@ -14,15 +14,18 @@ import { EventsService } from './events.service';
 import { PlaybackState } from '@viberoom/shared';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
-    origin: '*', // Restrict this in production
+    origin: '*',
   },
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  private readonly logger = new Logger(EventsGateway.name);
 
   constructor(
     private jwtService: JwtService,
@@ -34,28 +37,66 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth.token || client.handshake.headers['authorization']?.split(' ')[1];
+      const token =
+        client.handshake.auth.token ||
+        client.handshake.headers['authorization']?.split(' ')[1];
       if (!token) {
         client.disconnect();
         return;
       }
-      const secret = this.configService.get<string>('JWT_SECRET');
+      const secret =
+        this.configService.get<string>('JWT_SECRET') ||
+        'viberoom_jwt_default_secret_key_change_me';
       const payload = this.jwtService.verify(token, { secret });
       const user = await this.usersService.findById(payload.sub);
-      
+
       if (!user) {
         client.disconnect();
         return;
       }
-      
+
       client.data.user = user;
     } catch (error) {
       client.disconnect();
     }
   }
 
-  handleDisconnect(client: Socket) {
-    // Optionally handle cleanup or presence state
+  async handleDisconnect(client: Socket) {
+    const roomId = client.data.roomId;
+    const user = client.data.user;
+
+    if (roomId && user) {
+      try {
+        const member = await this.prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: user.id } },
+        });
+
+        // If member is not OWNER, remove on disconnect
+        if (member && member.role !== 'OWNER') {
+          await this.prisma.roomMember.delete({ where: { id: member.id } }).catch(() => {});
+        }
+
+        // Touch room updatedAt to track activity
+        await this.prisma.room.update({
+          where: { id: roomId },
+          data: { updatedAt: new Date() },
+        }).catch(() => {});
+
+        const members = await this.prisma.roomMember.findMany({
+          where: { roomId },
+          include: { user: true },
+        });
+
+        this.server.to(roomId).emit('room:members_updated', members);
+        this.server.to(roomId).emit('room:member_left', {
+          socketId: client.id,
+          userId: user.id,
+          roomId,
+        });
+      } catch (err: any) {
+        this.logger.error(`Error handling disconnect for room ${roomId}: ${err.message}`);
+      }
+    }
   }
 
   @SubscribeMessage('room:join')
@@ -65,18 +106,47 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { roomId } = payload;
     client.join(roomId);
+    client.data.roomId = roomId;
 
     const user = client.data.user;
     if (user) {
-      // Notify others in the room for WebRTC peering
-      client.to(roomId).emit('room:member_joined', {
-        socketId: client.id,
-        userId: user.id,
-        roomId,
-      });
+      try {
+        // Ensure user is in room in database
+        const existingMember = await this.prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: user.id } },
+        });
+
+        if (!existingMember) {
+          await this.prisma.roomMember.create({
+            data: { roomId, userId: user.id, role: 'MEMBER' },
+          }).catch(() => {});
+        }
+
+        // Touch room updatedAt
+        await this.prisma.room.update({
+          where: { id: roomId },
+          data: { updatedAt: new Date() },
+        }).catch(() => {});
+
+        // WebRTC peer notification
+        client.to(roomId).emit('room:member_joined', {
+          socketId: client.id,
+          userId: user.id,
+          roomId,
+        });
+
+        // Broadcast full updated members list to the entire room
+        const members = await this.prisma.roomMember.findMany({
+          where: { roomId },
+          include: { user: true },
+        });
+        this.server.to(roomId).emit('room:members_updated', members);
+      } catch (err: any) {
+        this.logger.error(`Error in handleRoomJoin: ${err.message}`);
+      }
     }
 
-    // Send current playback state to the newly joined user
+    // Send current playback state to newly joined user
     const state = await this.eventsService.getPlaybackState(roomId);
     if (state) {
       client.emit('room:resync', state);
@@ -90,6 +160,39 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { roomId } = payload;
     client.leave(roomId);
+    client.data.roomId = null;
+
+    const user = client.data.user;
+    if (user) {
+      try {
+        const member = await this.prisma.roomMember.findUnique({
+          where: { roomId_userId: { roomId, userId: user.id } },
+        });
+
+        if (member && member.role !== 'OWNER') {
+          await this.prisma.roomMember.delete({ where: { id: member.id } }).catch(() => {});
+        }
+
+        await this.prisma.room.update({
+          where: { id: roomId },
+          data: { updatedAt: new Date() },
+        }).catch(() => {});
+
+        const members = await this.prisma.roomMember.findMany({
+          where: { roomId },
+          include: { user: true },
+        });
+
+        this.server.to(roomId).emit('room:members_updated', members);
+        this.server.to(roomId).emit('room:member_left', {
+          socketId: client.id,
+          userId: user.id,
+          roomId,
+        });
+      } catch (err: any) {
+        this.logger.error(`Error in handleRoomLeave: ${err.message}`);
+      }
+    }
   }
 
   @SubscribeMessage('video:state')
@@ -100,25 +203,27 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId, state } = payload;
     const user = client.data.user;
     if (!user) return;
-    
+
     // Verify if user is OWNER
     const membership = await this.prisma.roomMember.findUnique({
       where: {
         roomId_userId: {
           userId: user.id,
           roomId,
-        }
-      }
+        },
+      },
     });
 
     if (membership?.role !== 'OWNER') {
-      // Ignore unauthorized sync attempts
       return;
     }
 
     await this.eventsService.setPlaybackState(roomId, state);
-    
-    // Broadcast to others in the room
+    await this.prisma.room.update({
+      where: { id: roomId },
+      data: { updatedAt: new Date() },
+    }).catch(() => {});
+
     client.to(roomId).emit('video:sync', state);
   }
 
@@ -131,10 +236,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = client.data.user;
 
     if (!user || !text || typeof text !== 'string') return;
-    
+
     const trimmedText = text.trim();
     if (!trimmedText || trimmedText.length > 500) {
-      // Ignore empty messages or messages that are too long
       return;
     }
 
@@ -146,10 +250,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       },
       include: {
         user: {
-          select: { id: true, displayName: true, avatarUrl: true }
+          select: { id: true, displayName: true, username: true, avatarUrl: true },
         },
       },
     });
+
+    // Touch room updatedAt
+    await this.prisma.room.update({
+      where: { id: roomId },
+      data: { updatedAt: new Date() },
+    }).catch(() => {});
 
     this.server.to(roomId).emit('chat:receive', message);
   }
@@ -161,10 +271,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { roomId, emoji } = payload;
     const user = client.data.user;
-    
+
     if (!user) return;
 
-    // Reactions are ephemeral, don't store in DB, just broadcast
     client.to(roomId).emit('chat:reaction', {
       emoji,
       userId: user.id,
@@ -181,10 +290,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const user = client.data.user;
     if (!user) return;
-    
-    // Relay offer to the specific target
+
     client.to(payload.roomId).emit('voice:offer', {
-      callerId: client.id, // Socket ID of caller
+      callerId: client.id,
       callerUserId: user.id,
       offer: payload.offer,
     });
@@ -197,7 +305,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const user = client.data.user;
     if (!user) return;
-    
+
     client.to(payload.targetId).emit('voice:answer', {
       answererId: client.id,
       answer: payload.answer,
@@ -211,7 +319,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const user = client.data.user;
     if (!user) return;
-    
+
     client.to(payload.targetId).emit('voice:ice-candidate', {
       senderId: client.id,
       candidate: payload.candidate,
