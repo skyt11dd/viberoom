@@ -10,6 +10,7 @@ import { EventsModule } from './events/events.module';
 import { RedisModule } from './redis/redis.module';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { BotModule } from './bot/bot.module';
+import { FriendsModule } from './friends/friends.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -34,6 +35,7 @@ import { APP_GUARD } from '@nestjs/core';
     RoomsModule,
     EventsModule,
     BotModule,
+    FriendsModule,
   ],
   controllers: [AppController],
   providers: [

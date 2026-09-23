@@ -24,6 +24,18 @@ interface ActiveRoom {
   createdAt: string;
 }
 
+interface FriendItem {
+  id: string;
+  displayName: string;
+  username?: string;
+  avatarUrl?: string;
+  currentRoom?: {
+    id: string;
+    title: string;
+  } | null;
+  friendSince: string;
+}
+
 interface UserStats {
   roomsCreated: number;
   roomsJoined: number;
@@ -34,16 +46,27 @@ export default function Home() {
   const { user, loading: authLoading, error, isTelegram, retryAuth } = useAuth();
 
   const [showSplash, setShowSplash] = useState(true);
+  const [mainTab, setMainTab] = useState<'rooms' | 'friends'>('rooms');
+
   const [rooms, setRooms] = useState<ActiveRoom[]>([]);
+  const [friends, setFriends] = useState<FriendItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomTitle, setNewRoomTitle] = useState('');
 
-  // Splash screen timeout (~900ms)
+  // Request bot write access and handle splash screen
   useEffect(() => {
+    const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+    if (tg?.requestWriteAccess) {
+      try {
+        tg.requestWriteAccess();
+      } catch {}
+    }
+
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 900);
@@ -61,19 +84,21 @@ export default function Home() {
     }
   }, [router]);
 
-  // Load public rooms and user stats when user is authenticated
+  // Load public rooms, friends and user stats
   const loadData = async () => {
     if (!user) return;
     try {
       setLoadingRooms(true);
-      const [roomsData, statsData] = await Promise.all([
+      const [roomsData, statsData, friendsData] = await Promise.all([
         fetchApi('/rooms').catch(() => []),
         fetchApi('/rooms/stats/me').catch(() => null),
+        fetchApi('/friends').catch(() => []),
       ]);
       setRooms(Array.isArray(roomsData) ? roomsData : []);
       if (statsData) setStats(statsData);
+      if (Array.isArray(friendsData)) setFriends(friendsData);
     } catch (err) {
-      console.error('Error fetching rooms or stats:', err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoadingRooms(false);
     }
@@ -84,6 +109,27 @@ export default function Home() {
       loadData();
     }
   }, [user]);
+
+  const loadFriends = async () => {
+    try {
+      setLoadingFriends(true);
+      const data = await fetchApi('/friends');
+      if (Array.isArray(data)) setFriends(data);
+    } catch (err) {
+      console.error('Failed to load friends:', err);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  const handleRemoveFriend = async (friendId: string) => {
+    try {
+      await fetchApi(`/friends/${friendId}`, { method: 'DELETE' });
+      setFriends((prev) => prev.filter((f) => f.id !== friendId));
+    } catch (err) {
+      console.error('Failed to remove friend:', err);
+    }
+  };
 
   const handleCreateRoom = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -207,10 +253,10 @@ export default function Home() {
             )}
           </div>
         ) : (
-          /* Authenticated Dashboard / Rave-style feed */
+          /* Authenticated Dashboard */
           <main className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full pb-10">
             {/* User Profile Card */}
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 mb-5 flex items-center justify-between shadow-sm">
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 mb-4 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-3 min-w-0">
                 {user.avatarUrl ? (
                   <img
@@ -249,7 +295,7 @@ export default function Home() {
             </div>
 
             {/* Quick Action: Create Room Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-violet-900/40 border border-purple-500/20 mb-6 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-violet-900/40 border border-purple-500/20 mb-5 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-white mb-0.5">Власна вечірка</h3>
                 <p className="text-[11px] text-white/60">Дивіться будь-яке відео разом з друзями</p>
@@ -265,108 +311,222 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Public Rooms Header */}
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-white/70">
-                  🔥 Активні кімнати
-                </span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  {rooms.length}
-                </span>
-              </div>
-
+            {/* Segmented Control: Rooms vs Friends */}
+            <div className="p-1 rounded-xl bg-white/5 flex gap-1 mb-4 border border-white/5">
               <button
-                onClick={loadData}
-                disabled={loadingRooms}
-                className="text-[11px] text-white/50 hover:text-white flex items-center gap-1 active:scale-95 transition"
+                onClick={() => setMainTab('rooms')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  mainTab === 'rooms'
+                    ? 'bg-[var(--button,#007aff)] text-white shadow-sm'
+                    : 'text-white/50 hover:text-white'
+                }`}
               >
-                <span>{loadingRooms ? 'Оновлення...' : 'Оновити'}</span>
-                <span className={loadingRooms ? 'animate-spin' : ''}>🔄</span>
+                🔥 Кімнати ({rooms.length})
+              </button>
+              <button
+                onClick={() => {
+                  setMainTab('friends');
+                  loadFriends();
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  mainTab === 'friends'
+                    ? 'bg-[var(--button,#007aff)] text-white shadow-sm'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                👥 Друзі ({friends.length})
               </button>
             </div>
 
-            {/* Public Rooms List (Rave Style) */}
-            {loadingRooms && rooms.length === 0 ? (
-              <div className="p-8 text-center text-xs text-white/40">
-                Завантаження кімнат...
-              </div>
-            ) : rooms.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 text-center flex flex-col items-center">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl mb-3">
-                  🍿
+            {/* ── Tab 1: Rooms Feed ── */}
+            {mainTab === 'rooms' && (
+              <div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/70">
+                    Активні вечірки
+                  </span>
+                  <button
+                    onClick={loadData}
+                    disabled={loadingRooms}
+                    className="text-[11px] text-white/50 hover:text-white flex items-center gap-1 active:scale-95 transition"
+                  >
+                    <span>{loadingRooms ? 'Оновлення...' : 'Оновити'}</span>
+                    <span className={loadingRooms ? 'animate-spin' : ''}>🔄</span>
+                  </button>
                 </div>
-                <p className="text-sm font-semibold text-white/80 mb-1">
-                  Зараз немає відкритих кімнат
-                </p>
-                <p className="text-xs text-white/40 max-w-xs mb-4">
-                  Будьте першим, хто запустить стрім! Створіть кімнату та запросіть друзів за посиланням.
-                </p>
-                <button
-                  onClick={() => {
-                    setNewRoomTitle(`Кімната ${user.displayName}`);
-                    setShowCreateModal(true);
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--button,#007aff)] text-white active:scale-95 transition shadow-sm"
-                >
-                  ✨ Створити першу кімнату
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {rooms.map((room) => {
-                  const memberCount = room._count?.members ?? room.members?.length ?? 1;
 
-                  return (
-                    <div
-                      key={room.id}
-                      onClick={() => router.push(`/rooms/${room.id}`)}
-                      className="p-3.5 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] hover:bg-[var(--bg-secondary,#1a1a1e)]/80 border border-white/5 active:scale-[0.99] transition cursor-pointer flex items-center justify-between gap-3 shadow-sm group"
+                {loadingRooms && rooms.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-white/40">
+                    Завантаження кімнат...
+                  </div>
+                ) : rooms.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 text-center flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl mb-3">
+                      🍿
+                    </div>
+                    <p className="text-sm font-semibold text-white/80 mb-1">
+                      Зараз немає відкритих кімнат
+                    </p>
+                    <p className="text-xs text-white/40 max-w-xs mb-4">
+                      Будьте першим, хто запустить стрім! Створіть кімнату та запросіть друзів за посиланням.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setNewRoomTitle(`Кімната ${user.displayName}`);
+                        setShowCreateModal(true);
+                      }}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--button,#007aff)] text-white active:scale-95 transition shadow-sm"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Host avatar / Icon */}
-                        <div className="relative shrink-0">
-                          {room.owner?.avatarUrl ? (
-                            <img
-                              src={room.owner.avatarUrl}
-                              alt=""
-                              className="w-11 h-11 rounded-xl object-cover ring-1 ring-white/10"
-                            />
-                          ) : (
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-600/40 to-purple-600/40 border border-purple-500/20 flex items-center justify-center text-base font-bold text-purple-200">
-                              {room.owner?.displayName?.charAt(0) || '🎬'}
-                            </div>
-                          )}
-                          <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-[var(--bg-secondary,#1a1a1e)] rounded-full animate-pulse" />
-                        </div>
+                      ✨ Створити першу кімнату
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {rooms.map((room) => {
+                      const memberCount = room._count?.members ?? room.members?.length ?? 1;
 
-                        {/* Room info */}
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition">
-                            {room.title}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-white/50 truncate">
-                              Хост: {room.owner?.displayName || 'Анонім'}
+                      return (
+                        <div
+                          key={room.id}
+                          onClick={() => router.push(`/rooms/${room.id}`)}
+                          className="p-3.5 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] hover:bg-[var(--bg-secondary,#1a1a1e)]/80 border border-white/5 active:scale-[0.99] transition cursor-pointer flex items-center justify-between gap-3 shadow-sm group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative shrink-0">
+                              {room.owner?.avatarUrl ? (
+                                <img
+                                  src={room.owner.avatarUrl}
+                                  alt=""
+                                  className="w-11 h-11 rounded-xl object-cover ring-1 ring-white/10"
+                                />
+                              ) : (
+                                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-violet-600/40 to-purple-600/40 border border-purple-500/20 flex items-center justify-center text-base font-bold text-purple-200">
+                                  {room.owner?.displayName?.charAt(0) || '🎬'}
+                                </div>
+                              )}
+                              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-[var(--bg-secondary,#1a1a1e)] rounded-full animate-pulse" />
+                            </div>
+
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition">
+                                {room.title}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-white/50 truncate">
+                                  Хост: {room.owner?.displayName || 'Анонім'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              {memberCount}
+                            </span>
+                            <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 group-hover:bg-[var(--button,#007aff)] group-hover:text-white transition">
+                              →
                             </span>
                           </div>
                         </div>
-                      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
-                      {/* Right Action & Member Badge */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          {memberCount}
-                        </span>
+            {/* ── Tab 2: Friends List ── */}
+            {mainTab === 'friends' && (
+              <div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/70">
+                    Мої друзі
+                  </span>
+                  <button
+                    onClick={loadFriends}
+                    disabled={loadingFriends}
+                    className="text-[11px] text-white/50 hover:text-white flex items-center gap-1 active:scale-95 transition"
+                  >
+                    <span>{loadingFriends ? 'Оновлення...' : 'Оновити'}</span>
+                    <span className={loadingFriends ? 'animate-spin' : ''}>🔄</span>
+                  </button>
+                </div>
 
-                        <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 group-hover:bg-[var(--button,#007aff)] group-hover:text-white transition">
-                          →
-                        </span>
-                      </div>
+                {loadingFriends && friends.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-white/40">
+                    Завантаження друзів...
+                  </div>
+                ) : friends.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 text-center flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl mb-3">
+                      👥
                     </div>
-                  );
-                })}
+                    <p className="text-sm font-semibold text-white/80 mb-1">
+                      У вас поки немає друзів
+                    </p>
+                    <p className="text-xs text-white/40 max-w-xs leading-relaxed">
+                      Заходьте в кімнати, натискайте на учасників та додавайте їх у друзі, щоб кликати на спільний перегляд в 1 клік!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {friends.map((friend) => (
+                      <div
+                        key={friend.id}
+                        className="p-3 rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 flex items-center justify-between gap-3 shadow-sm"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {friend.avatarUrl ? (
+                            <img
+                              src={friend.avatarUrl}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/20 flex items-center justify-center text-xs font-bold shrink-0">
+                              {friend.displayName.charAt(0)}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-semibold text-white truncate">
+                              {friend.displayName}
+                            </h4>
+                            {friend.username && (
+                              <p className="text-[11px] text-white/40 truncate">
+                                @{friend.username}
+                              </p>
+                            )}
+                            {friend.currentRoom && (
+                              <p className="text-[10px] text-purple-300 truncate mt-0.5">
+                                🍿 У кімнаті: {friend.currentRoom.title}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {friend.currentRoom && (
+                            <button
+                              onClick={() => router.push(`/rooms/${friend.currentRoom!.id}`)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-600 text-white active:scale-95 transition"
+                            >
+                              Зайти
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveFriend(friend.id)}
+                            className="p-1.5 text-white/30 hover:text-red-400 text-xs transition"
+                            title="Видалити з друзів"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </main>

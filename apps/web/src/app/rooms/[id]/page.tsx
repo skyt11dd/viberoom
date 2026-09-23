@@ -23,6 +23,13 @@ interface Reaction {
   displayName: string;
 }
 
+interface FriendItem {
+  id: string;
+  displayName: string;
+  username?: string;
+  avatarUrl?: string;
+}
+
 export default function RoomPage() {
   const router = useRouter();
   const { id } = useParams();
@@ -38,8 +45,15 @@ export default function RoomPage() {
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'members'>('chat');
 
-  // Member profile modal
+  // Member profile modal & toast
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Friends invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [myFriends, setMyFriends] = useState<FriendItem[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [invitedFriends, setInvitedFriends] = useState<{ [id: string]: boolean }>({});
 
   const providerRef = useRef<YouTubeProvider | null>(null);
 
@@ -48,6 +62,11 @@ export default function RoomPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [reactions, setReactions] = useState<Reaction[]>([]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
 
   useEffect(() => {
     async function loadRoom() {
@@ -84,6 +103,8 @@ export default function RoomPage() {
 
       socket.on('chat:receive', (msg: ChatMessage) => {
         setMessages((prev) => [...prev, msg]);
+        const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+        tg?.HapticFeedback?.impactOccurred?.('light');
       });
 
       socket.on('chat:reaction', (reaction: Reaction) => {
@@ -185,21 +206,73 @@ export default function RoomPage() {
   const sendReaction = (emoji: string) => {
     if (!socket) return;
     socket.emit('chat:react', { roomId, emoji });
+    const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+    tg?.HapticFeedback?.notificationOccurred?.('success');
   };
 
-  const handleShare = () => {
+  const openInviteModal = async () => {
+    setShowInviteModal(true);
+    try {
+      setLoadingFriends(true);
+      const friendsData = await fetchApi('/friends');
+      if (Array.isArray(friendsData)) setMyFriends(friendsData);
+    } catch (err) {
+      console.error('Помилка завантаження друзів:', err);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  const handleInviteFriendViaBot = async (friendId: string, friendName: string) => {
+    try {
+      setInvitedFriends((prev) => ({ ...prev, [friendId]: true }));
+      const res = await fetchApi(`/friends/${friendId}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ roomId }),
+      });
+      showToast(res.message || `Запрошення надіслано ${friendName}!`);
+    } catch (err: any) {
+      showToast(`Помилка: ${err.message}`);
+    }
+  };
+
+  const handleAddFriendFromProfile = async (targetUserId: string) => {
+    try {
+      await fetchApi(`/friends/${targetUserId}`, { method: 'POST' });
+      showToast('✓ Додано в друзі!');
+      setSelectedProfile((prev: any) => (prev ? { ...prev, isFriend: true } : null));
+    } catch (err: any) {
+      showToast(err.message || 'Помилка додавання в друзі');
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot';
+    const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
+    const textToCopy = `🍿 Приєднуйся до моєї кімнати «${room?.title || 'VIBEROOM'}»!\n🎬 Дивимося відео разом і спілкуємося голосом: ${inviteLink}`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(textToCopy);
+      showToast('✓ Посилання скопійовано!');
+    } else {
+      showToast(inviteLink);
+    }
+  };
+
+  const handleShareToTelegram = () => {
     const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
     const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot';
     const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
-    const text = encodeURIComponent(`🍿 Дивімося відео разом у VIBEROOM! Кімната: "${room?.title || 'Кімната'}"`);
+    const text = encodeURIComponent(
+      `🍿 Приєднуйся до моєї кімнати «${room?.title || 'VIBEROOM'}»!\n🎬 Дивимося відео разом і спілкуємося голосом!`
+    );
 
     if (tg?.openTelegramLink) {
       tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${text}`);
     } else if (navigator.share) {
       navigator.share({ title: room?.title, url: inviteLink }).catch(() => {});
     } else {
-      navigator.clipboard?.writeText(inviteLink);
-      alert('Посилання для запрошення скопійовано!');
+      handleCopyInviteLink();
     }
   };
 
@@ -233,7 +306,21 @@ export default function RoomPage() {
     room?.members?.find((m: any) => m.userId === user?.id)?.role === 'OWNER';
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[var(--bg,#0e0e11)] text-white overflow-hidden select-none">
+    <div className="flex flex-col h-[100dvh] bg-[var(--bg,#0e0e11)] text-white overflow-hidden select-none relative">
+      {/* ── Toast notification banner ── */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-purple-600 text-white text-xs font-semibold shadow-xl border border-white/20"
+          >
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Top Header ── */}
       <header className="h-14 px-3 sm:px-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[var(--bg,#0e0e11)]/95 backdrop-blur-md z-20">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -283,9 +370,9 @@ export default function RoomPage() {
             <span>{room.members?.length || 1}</span>
           </button>
 
-          {/* Invite Friend */}
+          {/* Invite Friend Modal trigger */}
           <button
-            onClick={handleShare}
+            onClick={openInviteModal}
             className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--button,#007aff)] text-white hover:opacity-90 active:scale-95 transition flex items-center gap-1 shadow-sm"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -618,12 +705,18 @@ export default function RoomPage() {
                 );
               })}
 
-              <div className="pt-4">
+              <div className="pt-4 flex flex-col gap-2">
                 <button
-                  onClick={handleShare}
+                  onClick={openInviteModal}
                   className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-[var(--button,#007aff)] text-white hover:opacity-90 active:scale-95 transition flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <span>➕ Запросити ще друзів</span>
+                  <span>👥 Покликати друзів у кімнату</span>
+                </button>
+                <button
+                  onClick={handleShareToTelegram}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-white/10 text-white hover:bg-white/15 active:scale-95 transition flex items-center justify-center gap-1.5"
+                >
+                  <span>📤 Надіслати посилання в чат</span>
                 </button>
               </div>
             </div>
@@ -670,7 +763,7 @@ export default function RoomPage() {
               )}
 
               {/* Badge */}
-              <div className="mb-5">
+              <div className="mb-4">
                 {selectedProfile.isHost || selectedProfile.id === room.ownerId ? (
                   <span className="text-xs font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/25 px-2.5 py-1 rounded-full">
                     👑 Хост кімнати
@@ -684,6 +777,15 @@ export default function RoomPage() {
 
               {/* Actions */}
               <div className="w-full flex flex-col gap-2">
+                {selectedProfile.id !== user?.id && (
+                  <button
+                    onClick={() => handleAddFriendFromProfile(selectedProfile.id)}
+                    className="w-full py-2.5 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white active:scale-95 transition flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <span>➕ Додати в друзі</span>
+                  </button>
+                )}
+
                 {selectedProfile.username && (
                   <button
                     onClick={() => {
@@ -703,6 +805,128 @@ export default function RoomPage() {
 
                 <button
                   onClick={() => setSelectedProfile(null)}
+                  className="w-full py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 transition"
+                >
+                  Закрити
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Invite Friends & Share Modal ── */}
+      <AnimatePresence>
+        {showInviteModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              className="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white">Запросити друзів</h3>
+                  <p className="text-[11px] text-white/40">Надішліть сповіщення прямо в Telegram</p>
+                </div>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="p-1 text-white/50 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Quick Link Share & Copy */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-white truncate">
+                    🍿 Інвайт-посилання
+                  </div>
+                  <div className="text-[10px] text-white/40 truncate">
+                    t.me/VibeRoomBot?startapp=room_{roomId.slice(0, 8)}...
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={handleCopyInviteLink}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 text-white transition active:scale-95"
+                  >
+                    Копіювати
+                  </button>
+                  <button
+                    onClick={handleShareToTelegram}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[var(--button,#007aff)] text-white hover:opacity-90 transition active:scale-95"
+                  >
+                    Шерити
+                  </button>
+                </div>
+              </div>
+
+              {/* Friends List for direct notification */}
+              <div className="text-xs font-semibold text-white/60 mb-2 uppercase tracking-wider">
+                Покликати через бота
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1">
+                {loadingFriends ? (
+                  <div className="py-6 text-center text-xs text-white/40">
+                    Завантаження друзів...
+                  </div>
+                ) : myFriends.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-white/40 leading-relaxed">
+                    У вас ще немає доданих друзів. Ви можете скопіювати посилання вище та надіслати в будь-який чат!
+                  </div>
+                ) : (
+                  myFriends.map((f) => (
+                    <div
+                      key={f.id}
+                      className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {f.avatarUrl ? (
+                          <img
+                            src={f.avatarUrl}
+                            alt=""
+                            className="w-8 h-8 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/20 flex items-center justify-center text-xs font-bold shrink-0">
+                            {f.displayName.charAt(0)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-white truncate">
+                            {f.displayName}
+                          </div>
+                          {f.username && (
+                            <div className="text-[10px] text-white/40 truncate">
+                              @{f.username}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleInviteFriendViaBot(f.id, f.displayName)}
+                        disabled={invitedFriends[f.id]}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition active:scale-95 shrink-0 ${
+                          invitedFriends[f.id]
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm'
+                        }`}
+                      >
+                        {invitedFriends[f.id] ? '✓ Надіслано' : '🔔 Покликати'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-white/10 mt-3">
+                <button
+                  onClick={() => setShowInviteModal(false)}
                   className="w-full py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 transition"
                 >
                   Закрити
