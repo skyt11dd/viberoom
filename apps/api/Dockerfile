@@ -29,9 +29,11 @@ COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/
+COPY --from=builder /app/apps/api/start.sh ./apps/api/start.sh
+
+RUN chmod +x ./apps/api/start.sh
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
-# Run db push to create tables, then start the app
-CMD sh -c "npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate && node apps/api/dist/main.js"
+CMD ["sh", "./apps/api/start.sh"]
