@@ -8,18 +8,15 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, error } = useAuth();
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg?.initDataUnsafe?.start_param) {
-        const startParam = tg.initDataUnsafe.start_param;
-        if (startParam.startsWith('room_')) {
-          const roomId = startParam.replace('room_', '');
-          router.push(`/rooms/${roomId}`);
-        }
+    const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+    if (tg?.initDataUnsafe?.start_param) {
+      const sp = tg.initDataUnsafe.start_param;
+      if (sp.startsWith('room_')) {
+        router.push(`/rooms/${sp.replace('room_', '')}`);
       }
     }
   }, [router]);
@@ -40,92 +37,146 @@ export default function Home() {
 
   if (authLoading) {
     return (
-      <div className="glow-bg flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Image src="/logo.jpg" alt="VibeRoom" width={64} height={64} className="rounded-2xl animate-pulse-glow" />
-          <p className="text-[var(--text-secondary)] text-sm animate-pulse-glow">Loading...</p>
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <Image src="/logo.jpg" alt="V" width={56} height={56} style={{ borderRadius: 16, opacity: 0.7 }} />
+          <p style={{ color: 'var(--text-hint)', fontSize: 14, marginTop: 16 }}>Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="glow-bg flex flex-col h-screen items-center justify-center p-6 relative">
-      <div className="glass-card p-10 max-w-sm w-full flex flex-col items-center gap-8 relative z-10">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      padding: '0 20px',
+    }}>
+      {/* Main content centered */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 32,
+        paddingBottom: 40,
+      }}>
         {/* Logo */}
-        <div className="animate-float">
-          <Image 
-            src="/logo.jpg" 
-            alt="VibeRoom" 
-            width={80} 
-            height={80} 
-            className="rounded-2xl shadow-lg"
-            style={{ boxShadow: '0 0 40px rgba(139, 92, 246, 0.3)' }}
-          />
-        </div>
+        <Image
+          src="/logo.jpg"
+          alt="VibeRoom"
+          width={72}
+          height={72}
+          style={{ borderRadius: 18 }}
+        />
 
-        {/* Title */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold gradient-text">VibeRoom</h1>
-          <p className="text-[var(--text-secondary)] text-sm leading-relaxed">
-            Watch videos together with friends<br />in perfect sync
+        {/* Title block */}
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: 28,
+            fontWeight: 700,
+            color: 'var(--text)',
+            margin: '0 0 8px 0',
+          }}>
+            VibeRoom
+          </h1>
+          <p style={{
+            fontSize: 15,
+            color: 'var(--text-hint)',
+            margin: 0,
+            lineHeight: 1.5,
+          }}>
+            Watch videos together with friends
           </p>
         </div>
 
-        {/* Action */}
+        {/* Auth section */}
         {user ? (
-          <div className="w-full space-y-4">
-            <button 
-              onClick={createRoom} 
-              disabled={creating}
-              className="btn-primary w-full text-base"
-            >
-              {creating ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Creating...
-                </span>
-              ) : (
-                '✨ Create New Room'
-              )}
-            </button>
-            
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            {/* User info */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '14px 16px',
+              background: 'var(--bg-secondary)',
+              borderRadius: 14,
+              marginBottom: 16,
+            }}>
               {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
+                <img src={user.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent-violet)] to-[var(--accent-blue)] flex items-center justify-center text-xs font-bold text-white">
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: 'var(--button)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--button-text)', fontWeight: 600, fontSize: 16,
+                }}>
                   {user.displayName.charAt(0)}
                 </div>
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">{user.displayName}</p>
-                {user.username && <p className="text-xs text-[var(--text-muted)]">@{user.username}</p>}
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
+                  {user.displayName}
+                </div>
+                {user.username && (
+                  <div style={{ fontSize: 13, color: 'var(--text-hint)' }}>
+                    @{user.username}
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Create room button */}
+            <button
+              onClick={createRoom}
+              disabled={creating}
+              style={{
+                width: '100%',
+                padding: '15px 24px',
+                fontSize: 16,
+                fontWeight: 600,
+                color: 'var(--button-text)',
+                background: 'var(--button)',
+                border: 'none',
+                borderRadius: 12,
+                cursor: creating ? 'default' : 'pointer',
+                opacity: creating ? 0.6 : 1,
+                transition: 'opacity 0.2s',
+              }}
+            >
+              {creating ? 'Creating...' : 'Create Room'}
+            </button>
           </div>
         ) : (
-          <div className="text-center space-y-3">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent-violet)]/10 border border-[var(--accent-violet)]/20">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent-violet)]">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              <span className="text-xs text-[var(--accent-violet)] font-medium">Open inside Telegram</span>
-            </div>
-            <p className="text-xs text-[var(--text-muted)]">
-              This app works as a Telegram Mini App
+          <div style={{ textAlign: 'center', maxWidth: 280 }}>
+            <p style={{
+              fontSize: 14,
+              color: 'var(--text-hint)',
+              margin: '0 0 8px 0',
+              lineHeight: 1.5,
+            }}>
+              Open this app via Telegram bot to get started
             </p>
+            {error && (
+              <p style={{
+                fontSize: 12,
+                color: '#ff6b6b',
+                margin: '12px 0 0 0',
+                padding: '8px 12px',
+                background: 'rgba(255,107,107,0.1)',
+                borderRadius: 8,
+                wordBreak: 'break-word',
+              }}>
+                {error}
+              </p>
+            )}
           </div>
         )}
       </div>
-
-      {/* Footer */}
-      <p className="absolute bottom-6 text-xs text-[var(--text-muted)] z-10">
-        VibeRoom — watch together, vibe together
-      </p>
     </div>
   );
 }

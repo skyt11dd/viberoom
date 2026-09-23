@@ -13,68 +13,71 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  error: string | null;
   loginWithTelegram: (initData: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper to get Telegram WebApp instance from the global script
-function getTelegramWebApp(): any | null {
-  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
-    return (window as any).Telegram.WebApp;
-  }
-  return null;
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initAuth = async () => {
-      const tg = getTelegramWebApp();
-
-      // If inside Telegram WebApp and we have initData
-      if (tg && tg.initData) {
-        tg.ready();
-        tg.expand();
-
-        try {
-          const response = await fetchApi('/auth/telegram', {
-            method: 'POST',
-            body: JSON.stringify({ initData: tg.initData }),
-          });
-          localStorage.setItem('viberoom_token', response.access_token);
-          setUser(response.user);
-          setLoading(false);
-          return;
-        } catch (err) {
-          console.error('Telegram auto-login failed:', err);
-        }
-      }
-
-      // Fallback: try existing token
-      const token = localStorage.getItem('viberoom_token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       try {
-        const userData = await fetchApi('/auth/me');
-        setUser(userData);
-      } catch (err) {
-        console.error('Failed to restore session:', err);
-        localStorage.removeItem('viberoom_token');
-      } finally {
-        setLoading(false);
+        // Wait a tick for Telegram script to be ready
+        await new Promise(r => setTimeout(r, 200));
+
+        const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+
+        if (tg) {
+          tg.ready();
+          tg.expand();
+        }
+
+        const initData = tg?.initData;
+
+        if (initData && initData.length > 0) {
+          try {
+            const response = await fetchApi('/auth/telegram', {
+              method: 'POST',
+              body: JSON.stringify({ initData }),
+            });
+            localStorage.setItem('viberoom_token', response.access_token);
+            setUser(response.user);
+            setLoading(false);
+            return;
+          } catch (err: any) {
+            console.error('Telegram auth API error:', err);
+            setError(`Auth failed: ${err.message}`);
+          }
+        } else {
+          console.log('No Telegram initData found. tg exists:', !!tg, 'initData:', initData);
+        }
+
+        // Fallback: try existing token
+        const token = localStorage.getItem('viberoom_token');
+        if (token) {
+          try {
+            const userData = await fetchApi('/auth/me');
+            setUser(userData);
+            setLoading(false);
+            return;
+          } catch {
+            localStorage.removeItem('viberoom_token');
+          }
+        }
+      } catch (err: any) {
+        console.error('Auth init error:', err);
+        setError(err.message);
       }
+      setLoading(false);
     };
 
-    // Small delay to ensure telegram-web-app.js has initialized
-    const timer = setTimeout(initAuth, 100);
-    return () => clearTimeout(timer);
+    initAuth();
   }, []);
 
   const loginWithTelegram = async (initData: string) => {
@@ -92,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithTelegram, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, loginWithTelegram, logout }}>
       {children}
     </AuthContext.Provider>
   );
