@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { fetchApi } from '../lib/api';
-import WebApp from '@twa-dev/sdk';
 
 export interface User {
   id: string;
@@ -27,18 +26,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initTelegramAuth = async () => {
       // Check if running inside Telegram WebApp
-      if (typeof window !== 'undefined' && WebApp.initData) {
-        WebApp.ready();
-        WebApp.expand();
+      if (typeof window !== 'undefined') {
         try {
-          const response = await fetchApi('/auth/telegram', {
-            method: 'POST',
-            body: JSON.stringify({ initData: WebApp.initData }),
-          });
-          localStorage.setItem('viberoom_token', response.access_token);
-          setUser(response.user);
-          setLoading(false);
-          return;
+          const twa = (await import('@twa-dev/sdk')).default;
+          if (twa.initData) {
+            twa.ready();
+            twa.expand();
+            
+            const response = await fetchApi('/auth/telegram', {
+              method: 'POST',
+              body: JSON.stringify({ initData: twa.initData }),
+            });
+            localStorage.setItem('viberoom_token', response.access_token);
+            setUser(response.user);
+            setLoading(false);
+            return;
+          }
         } catch (err) {
           console.error('Telegram auto-login failed', err);
         }
