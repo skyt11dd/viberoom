@@ -104,7 +104,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Verify if user is OWNER
     const membership = await this.prisma.roomMember.findUnique({
       where: {
-        userId_roomId: {
+        roomId_userId: {
           userId: user.id,
           roomId,
         }
