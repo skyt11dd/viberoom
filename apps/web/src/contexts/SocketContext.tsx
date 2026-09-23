@@ -26,7 +26,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
 
     const token = localStorage.getItem('viberoom_token');
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    const wsUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
 
     const newSocket = io(wsUrl, {
       auth: { token },

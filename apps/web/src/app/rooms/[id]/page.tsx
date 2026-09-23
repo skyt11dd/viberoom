@@ -198,22 +198,19 @@ export default function RoomPage() {
             </div>
           </div>
           <button 
-            onClick={async () => {
-              if (typeof window !== 'undefined') {
-                const WebApp = (await import('@twa-dev/sdk')).default;
-                if (WebApp.initData) {
-                  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot'; // Replace with actual bot username
-                  const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
-                  const text = encodeURIComponent('Join my VibeRoom to watch videos together! 🍿');
-                  WebApp.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
-                  return;
-                }
+            onClick={() => {
+              const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+              if (tg?.initData) {
+                const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'VibeRoomBot';
+                const inviteLink = `https://t.me/${botUsername}?startapp=room_${roomId}`;
+                const text = encodeURIComponent('Join my VibeRoom to watch videos together! 🍿');
+                tg.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
+              } else {
+                const fallbackLink = `https://t.me/share/url?url=${window.location.href}`;
+                window.open(fallbackLink, '_blank');
               }
-              // Fallback for normal browser
-              const fallbackLink = `https://t.me/share/url?url=${window.location.href}`;
-              window.open(fallbackLink, '_blank');
             }}
-            className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded font-medium transition"
+            className="btn-primary px-4 py-2 text-sm"
           >
             Invite Friend
           </button>
