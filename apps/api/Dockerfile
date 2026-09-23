@@ -1,0 +1,33 @@
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+FROM base AS builder
+WORKDIR /app
+
+# Copy root workspace configs
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+
+# Copy packages and api app
+COPY packages/ ./packages/
+COPY apps/api/ ./apps/api/
+
+# Install dependencies and build
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @viberoom/database db:generate
+RUN pnpm --filter api build
+
+FROM base AS runner
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/
+
+ENV NODE_ENV=production
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/main.js"]
