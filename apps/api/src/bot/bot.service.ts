@@ -205,4 +205,84 @@ export class BotService implements OnModuleInit {
       }
     }
   }
+
+  async sendFriendRequestNotification(
+    senderName: string,
+    recipientTelegramId: string,
+  ): Promise<boolean> {
+    const rawWebAppUrl =
+      this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'https://web-production-14e41a.up.railway.app';
+    const webAppUrl = rawWebAppUrl.trim().replace(/\/+$/, '');
+    const botUsername =
+      this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
+      this.bot.botInfo?.username ||
+      'VibeRoomBot';
+    const isHttps = webAppUrl.startsWith('https://');
+
+    const text =
+      `👥 <b>Нова заявка в друзі у VIBEROOM!</b>\n\n` +
+      `Користувач <b>${senderName}</b> надіслав(ла) вам запит у друзі.\n` +
+      `Прийміть його в додатку, щоб кликати один одного до кімнат в один дотик! ✨`;
+
+    try {
+      await this.bot.telegram.sendMessage(recipientTelegramId, text, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            isHttps
+              ? [Markup.button.webApp('👥 Переглянути заявку', webAppUrl)]
+              : [Markup.button.url('👥 Переглянути заявку', `https://t.me/${botUsername}`)],
+          ],
+        },
+      });
+      return true;
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to send friend request notification to ${recipientTelegramId}: ${err.message}`,
+      );
+      return false;
+    }
+  }
+
+  async sendFriendAcceptedNotification(
+    accepterName: string,
+    recipientTelegramId: string,
+  ): Promise<boolean> {
+    const rawWebAppUrl =
+      this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'https://web-production-14e41a.up.railway.app';
+    const webAppUrl = rawWebAppUrl.trim().replace(/\/+$/, '');
+    const botUsername =
+      this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
+      this.bot.botInfo?.username ||
+      'VibeRoomBot';
+    const isHttps = webAppUrl.startsWith('https://');
+
+    const text =
+      `🎉 <b>Заявку в друзі прийнято!</b>\n\n` +
+      `<b>${accepterName}</b> тепер у вашому списку друзів у VIBEROOM.\n` +
+      `Створюйте кімнату та дивіться відео разом! 🍿`;
+
+    try {
+      await this.bot.telegram.sendMessage(recipientTelegramId, text, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            isHttps
+              ? [Markup.button.webApp('🚀 Відкрити VIBEROOM', webAppUrl)]
+              : [Markup.button.url('🚀 Відкрити VIBEROOM', `https://t.me/${botUsername}`)],
+          ],
+        },
+      });
+      return true;
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to send friend accepted notification to ${recipientTelegramId}: ${err.message}`,
+      );
+      return false;
+    }
+  }
 }

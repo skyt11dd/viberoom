@@ -48,6 +48,24 @@ export default function RoomPage() {
   // Member profile modal & toast
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [profileFriendStatus, setProfileFriendStatus] = useState<{
+    status: 'NONE' | 'FRIENDS' | 'OUTGOING_REQUEST' | 'INCOMING_REQUEST' | 'SELF';
+    requestId?: string;
+    loading?: boolean;
+  }>({ status: 'NONE', loading: false });
+
+  useEffect(() => {
+    if (selectedProfile && selectedProfile.id !== user?.id) {
+      setProfileFriendStatus({ status: 'NONE', loading: true });
+      fetchApi(`/friends/status/${selectedProfile.id}`)
+        .then((res) => {
+          if (res?.status) {
+            setProfileFriendStatus({ status: res.status, requestId: res.requestId, loading: false });
+          }
+        })
+        .catch(() => setProfileFriendStatus({ status: 'NONE', loading: false }));
+    }
+  }, [selectedProfile, user?.id]);
 
   // Friends invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -924,12 +942,113 @@ export default function RoomPage() {
               {/* Actions */}
               <div className="w-full flex flex-col gap-2.5">
                 {selectedProfile.id !== user?.id && (
-                  <button
-                    onClick={() => handleAddFriendFromProfile(selectedProfile.id)}
-                    className="w-full py-3 rounded-2xl text-xs font-semibold bg-white text-black active:scale-95 transition flex items-center justify-center gap-1.5 shadow-md"
-                  >
-                    <span>Додати в друзі</span>
-                  </button>
+                  <div className="w-full">
+                    {profileFriendStatus.loading ? (
+                      <div className="w-full py-3 rounded-2xl text-xs font-semibold bg-white/10 text-white/50 flex items-center justify-center">
+                        <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      </div>
+                    ) : profileFriendStatus.status === 'FRIENDS' ? (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="py-2.5 rounded-2xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center justify-center gap-1.5 shadow-sm">
+                          <span>✓ У ваших друзях</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetchApi(`/friends/${selectedProfile.id}`, { method: 'DELETE' });
+                              showToast('Видалено з друзів');
+                              setProfileFriendStatus({ status: 'NONE' });
+                            } catch (e: any) {
+                              showToast(e.message || 'Помилка видалення');
+                            }
+                          }}
+                          className="py-1 text-[11px] text-white/40 hover:text-red-400 active:text-red-500 transition"
+                        >
+                          Видалити з друзів
+                        </button>
+                      </div>
+                    ) : profileFriendStatus.status === 'OUTGOING_REQUEST' ? (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="py-2.5 rounded-2xl text-xs font-semibold bg-white/[0.08] border border-white/15 text-white/80 flex items-center justify-center gap-1.5">
+                          <span>⏳ Заявку надіслано</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (profileFriendStatus.requestId) {
+                              try {
+                                await fetchApi(`/friends/requests/${profileFriendStatus.requestId}/cancel`, { method: 'POST' });
+                                showToast('Заявку скасовано');
+                                setProfileFriendStatus({ status: 'NONE' });
+                              } catch (e: any) {
+                                showToast(e.message || 'Помилка');
+                              }
+                            }
+                          }}
+                          className="py-1 text-[11px] text-white/40 hover:text-red-400 active:text-red-500 transition"
+                        >
+                          Скасувати заявку
+                        </button>
+                      </div>
+                    ) : profileFriendStatus.status === 'INCOMING_REQUEST' ? (
+                      <div className="flex gap-2">
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={async () => {
+                            if (profileFriendStatus.requestId) {
+                              try {
+                                await fetchApi(`/friends/requests/${profileFriendStatus.requestId}/accept`, { method: 'POST' });
+                                showToast('✓ Заявку прийнято! Ви друзі');
+                                setProfileFriendStatus({ status: 'FRIENDS' });
+                              } catch (e: any) {
+                                showToast(e.message || 'Помилка');
+                              }
+                            }
+                          }}
+                          className="flex-1 py-3 rounded-2xl text-xs font-bold bg-white text-black active:scale-95 transition flex items-center justify-center gap-1.5 shadow-md"
+                        >
+                          <span>Прийняти заявку</span>
+                        </motion.button>
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={async () => {
+                            if (profileFriendStatus.requestId) {
+                              try {
+                                await fetchApi(`/friends/requests/${profileFriendStatus.requestId}/decline`, { method: 'POST' });
+                                showToast('Заявку відхилено');
+                                setProfileFriendStatus({ status: 'NONE' });
+                              } catch (e: any) {
+                                showToast(e.message || 'Помилка');
+                              }
+                            }
+                          }}
+                          className="w-12 py-3 rounded-2xl text-xs font-semibold bg-white/10 hover:bg-white/15 text-white/60 hover:text-white transition flex items-center justify-center"
+                          title="Відхилити"
+                        >
+                          ✕
+                        </motion.button>
+                      </div>
+                    ) : (
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={async () => {
+                          try {
+                            const res = await fetchApi(`/friends/request/${selectedProfile.id}`, { method: 'POST' });
+                            showToast(res.message || '✓ Заявку надіслано!');
+                            if (res.status === 'ACCEPTED') {
+                              setProfileFriendStatus({ status: 'FRIENDS' });
+                            } else {
+                              setProfileFriendStatus({ status: 'OUTGOING_REQUEST' });
+                            }
+                          } catch (err: any) {
+                            showToast(err.message || 'Помилка надсилання заявки');
+                          }
+                        }}
+                        className="w-full py-3 rounded-2xl text-xs font-bold bg-white text-black active:scale-95 transition flex items-center justify-center gap-1.5 shadow-md"
+                      >
+                        <span>+ Додати в друзі</span>
+                      </motion.button>
+                    )}
+                  </div>
                 )}
 
                 {selectedProfile.username && (

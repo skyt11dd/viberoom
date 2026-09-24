@@ -41,6 +41,23 @@ interface Friend {
   } | null;
 }
 
+interface FriendRequestItem {
+  id: string;
+  sender?: {
+    id: string;
+    displayName: string;
+    username?: string;
+    avatarUrl?: string;
+  };
+  receiver?: {
+    id: string;
+    displayName: string;
+    username?: string;
+    avatarUrl?: string;
+  };
+  createdAt: string;
+}
+
 export default function Home() {
   const { user, loading: authLoading, error, retryAuth } = useAuth();
   const router = useRouter();
@@ -60,7 +77,11 @@ export default function Home() {
 
   // Friends state
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequestItem[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestItem[]>([]);
+  const [showOutgoing, setShowOutgoing] = useState(false);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Create room modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -83,18 +104,21 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch rooms feed & user stats
+  // Fetch rooms feed & user stats & friends/requests
   const loadData = async () => {
     try {
       setLoadingRooms(true);
-      const [roomsData, statsData, friendsData] = await Promise.all([
+      const [roomsData, statsData, friendsData, requestsData] = await Promise.all([
         fetchApi('/rooms').catch(() => []),
         fetchApi('/rooms/stats/me').catch(() => null),
         fetchApi('/friends').catch(() => []),
+        fetchApi('/friends/requests').catch(() => ({ incoming: [], outgoing: [] })),
       ]);
       setRooms(Array.isArray(roomsData) ? roomsData : []);
       if (statsData) setStats(statsData);
       if (Array.isArray(friendsData)) setFriends(friendsData);
+      if (requestsData?.incoming) setIncomingRequests(requestsData.incoming);
+      if (requestsData?.outgoing) setOutgoingRequests(requestsData.outgoing);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -111,12 +135,56 @@ export default function Home() {
   const loadFriends = async () => {
     try {
       setLoadingFriends(true);
-      const data = await fetchApi('/friends');
+      const [data, requestsData] = await Promise.all([
+        fetchApi('/friends').catch(() => []),
+        fetchApi('/friends/requests').catch(() => ({ incoming: [], outgoing: [] })),
+      ]);
       if (Array.isArray(data)) setFriends(data);
+      if (requestsData?.incoming) setIncomingRequests(requestsData.incoming);
+      if (requestsData?.outgoing) setOutgoingRequests(requestsData.outgoing);
     } catch (err) {
       console.error('Failed to load friends:', err);
     } finally {
       setLoadingFriends(false);
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    triggerHaptic('medium');
+    setActionLoadingId(requestId);
+    try {
+      await fetchApi(`/friends/requests/${requestId}/accept`, { method: 'POST' });
+      await loadFriends();
+    } catch (err) {
+      console.error('Failed to accept request:', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeclineRequest = async (requestId: string) => {
+    triggerHaptic('light');
+    setActionLoadingId(requestId);
+    try {
+      await fetchApi(`/friends/requests/${requestId}/decline`, { method: 'POST' });
+      setIncomingRequests((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (err) {
+      console.error('Failed to decline request:', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    triggerHaptic('light');
+    setActionLoadingId(requestId);
+    try {
+      await fetchApi(`/friends/requests/${requestId}/cancel`, { method: 'POST' });
+      setOutgoingRequests((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (err) {
+      console.error('Failed to cancel request:', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -412,8 +480,11 @@ export default function Home() {
                     className="absolute inset-0 bg-white rounded-full shadow-sm z-0"
                   />
                 )}
-                <span className={`relative z-10 font-bold transition-colors ${mainTab === 'friends' ? 'text-black' : 'text-white/60 hover:text-white'}`}>
-                  Друзі ({friends.length})
+                <span className={`relative z-10 font-bold transition-colors ${mainTab === 'friends' ? 'text-black' : 'text-white/60 hover:text-white'} flex items-center justify-center gap-1.5`}>
+                  <span>Друзі ({friends.length})</span>
+                  {incomingRequests.length > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-purple-400/40 animate-pulse" />
+                  )}
                 </span>
               </button>
             </motion.div>
@@ -562,9 +633,123 @@ export default function Home() {
                   exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
                   transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 >
+                  {/* Incoming Requests Section (Needs Attention) */}
+                  {incomingRequests.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-4 p-3.5 rounded-[22px] bg-gradient-to-br from-purple-500/20 via-indigo-500/15 to-transparent border border-purple-400/30 backdrop-blur-xl shadow-lg relative overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between mb-3 px-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-400" />
+                          </span>
+                          <span className="text-xs font-bold text-white tracking-tight">
+                            Вхідні заявки ({incomingRequests.length})
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-purple-200/60 font-medium">Нові запити</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {incomingRequests.map((req) => (
+                          <div
+                            key={req.id}
+                            className="p-2.5 rounded-[16px] bg-white/[0.08] border border-white/10 flex items-center justify-between gap-2.5 shadow-sm"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {req.sender?.avatarUrl ? (
+                                <img
+                                  src={req.sender.avatarUrl}
+                                  alt=""
+                                  className="w-10 h-10 rounded-[13px] object-cover ring-1 ring-white/15 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-[13px] bg-gradient-to-br from-purple-500/30 to-indigo-500/40 text-white flex items-center justify-center text-xs font-bold shrink-0 ring-1 ring-white/15">
+                                  {req.sender?.displayName?.charAt(0) || '👤'}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h4 className="text-[13px] font-bold text-white truncate leading-tight">
+                                  {req.sender?.displayName}
+                                </h4>
+                                {req.sender?.username && (
+                                  <p className="text-[11px] text-white/45 truncate mt-0.5">
+                                    @{req.sender.username}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <motion.button
+                                whileTap={{ scale: 0.92 }}
+                                disabled={actionLoadingId === req.id}
+                                onClick={() => handleAcceptRequest(req.id)}
+                                className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-black active:scale-95 transition shadow-sm disabled:opacity-50"
+                              >
+                                {actionLoadingId === req.id ? '...' : 'Прийняти'}
+                              </motion.button>
+                              <motion.button
+                                whileTap={{ scale: 0.88 }}
+                                disabled={actionLoadingId === req.id}
+                                onClick={() => handleDeclineRequest(req.id)}
+                                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/15 text-white/50 hover:text-white flex items-center justify-center text-xs transition disabled:opacity-50"
+                                title="Відхилити"
+                              >
+                                ✕
+                              </motion.button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Outgoing Requests Section (Collapsible) */}
+                  {outgoingRequests.length > 0 && (
+                    <div className="mb-4 px-1">
+                      <button
+                        onClick={() => setShowOutgoing(!showOutgoing)}
+                        className="text-xs text-white/45 hover:text-white/80 flex items-center gap-1.5 transition select-none"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>Надіслані заявки ({outgoingRequests.length})</span>
+                        <span className="text-[10px] text-white/30">{showOutgoing ? '▲' : '▼'}</span>
+                      </button>
+
+                      {showOutgoing && (
+                        <div className="mt-2 space-y-1.5">
+                          {outgoingRequests.map((req) => (
+                            <div
+                              key={req.id}
+                              className="p-2.5 rounded-[16px] ios-glass flex items-center justify-between gap-2.5 text-xs shadow-sm"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-white/40">⏳</span>
+                                <span className="text-white font-medium truncate">{req.receiver?.displayName}</span>
+                                <span className="text-[11px] text-white/40 truncate">Очікує прийняття</span>
+                              </div>
+                              <motion.button
+                                whileTap={{ scale: 0.9 }}
+                                disabled={actionLoadingId === req.id}
+                                onClick={() => handleCancelRequest(req.id)}
+                                className="text-[11px] text-white/40 hover:text-red-400 transition px-2 py-0.5 rounded-full hover:bg-white/5"
+                              >
+                                Скасувати
+                              </motion.button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between mb-3 px-1">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                      Ваші друзі
+                      Ваші друзі ({friends.length})
                     </span>
                     <button
                       onClick={() => {
