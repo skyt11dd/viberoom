@@ -77,6 +77,10 @@ body {
   padding-top: max(12px, env(safe-area-inset-top));
 }
 
+.pt-header-safe {
+  padding-top: max(112px, calc(env(safe-area-inset-top, 0px) + 54px)) !important;
+}
+
 .pb-safe {
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }

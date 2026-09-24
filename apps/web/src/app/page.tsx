@@ -202,7 +202,7 @@ export default function Home() {
 
 
         {/* ── Top Header with proper safe-area offset below Telegram controls ── */}
-        <header className="pt-[max(56px,calc(env(safe-area-inset-top)+14px))] pb-3 px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
+        <header className="pt-header-safe pb-3 px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
           <div className="flex items-center gap-2.5">
             <Image
               src="/logo.jpg"
