@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Start, Update, Ctx, InjectBot } from 'nestjs-telegraf';
 import { Context, Markup, Telegraf } from 'telegraf';
 
 @Update()
 @Injectable()
-export class BotService {
+export class BotService implements OnModuleInit {
   private readonly logger = new Logger(BotService.name);
 
   constructor(
@@ -13,48 +13,144 @@ export class BotService {
     @InjectBot() private bot: Telegraf<Context>,
   ) {}
 
-  @Start()
-  async startCommand(@Ctx() ctx: Context) {
-    const webAppUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
-      this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
-      'https://example.com';
-
-    // Deep links pass args, e.g. /start room_123 -> args = "room_123"
-    // @ts-ignore
-    const args = ctx.payload;
-
-    if (args && args.startsWith('room_')) {
-      const inviteUrl = `${webAppUrl}?startapp=${args}`;
-      const inviteMsg =
-        '🍿 *Вас запросили до VIBEROOM!* 🍿\n\n' +
-        '🎬 Ваш друг чекає на вас у кімнаті для спільного перегляду!\n' +
-        '🎙️ Спілкуйтеся голосом, коментуйте в живому чаті та дивіться відео разом.\n\n' +
-        'Тисніть кнопку нижче, щоб зайти прямо зараз! 👇';
-
-      await ctx.reply(inviteMsg, {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          Markup.button.webApp('🎉 Приєднатися до кімнати', inviteUrl),
-        ]),
-      });
+  async onModuleInit() {
+    const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!token || token === 'dummy_token' || token === 'your_telegram_bot_token') {
+      this.logger.warn('⚠️ TELEGRAM_BOT_TOKEN is not set or placeholder. Bot listeners will be skipped.');
       return;
     }
 
-    const welcomeMsg =
-      '✨ *Ласкаво просимо до VIBEROOM!* ✨\n\n' +
-      '🎬 *Дивіться відео разом:* синхронний перегляд YouTube без затримок\n' +
-      '🎙️ *Голосовий звʼязок:* спілкуйтеся з друзями в реальному часі\n' +
-      '💬 *Живий чат:* обговорюйте та надсилайте реакції\n' +
-      '👥 *Система друзів:* кличте друзів у кімнату в один клік\n\n' +
-      'Тисніть кнопку нижче, щоб розпочати вечірку! 👇';
+    try {
+      this.logger.log('🤖 Initializing Telegram Bot listeners...');
+      const me = await this.bot.telegram.getMe();
+      this.logger.log(`✅ Telegram bot connected as @${me.username} (${me.first_name})`);
 
-    await ctx.reply(welcomeMsg, {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        Markup.button.webApp('🚀 Відкрити VIBEROOM', webAppUrl),
-      ]),
+      // Clear any stale webhook to ensure long polling receives messages
+      await this.bot.telegram.deleteWebhook({ drop_pending_updates: false });
+      this.logger.log('✅ Webhook cleared, long-polling ready');
+    } catch (err: any) {
+      this.logger.error(`⚠️ Bot init warning: ${err.message}`);
+    }
+
+    // Direct registration on Telegraf instance to ensure 100% reliability
+    this.bot.start(async (ctx) => {
+      this.logger.log(`📥 Received /start via bot.start from ${ctx.from?.id} (@${ctx.from?.username || 'no_user'})`);
+      await this.handleStart(ctx);
     });
+
+    this.bot.command('start', async (ctx) => {
+      this.logger.log(`📥 Received /start via bot.command from ${ctx.from?.id}`);
+      await this.handleStart(ctx);
+    });
+
+    this.bot.command('help', async (ctx) => {
+      await this.handleStart(ctx);
+    });
+
+    this.bot.on('message', async (ctx, next) => {
+      // @ts-ignore
+      const text = ctx.message?.text;
+      if (text && typeof text === 'string' && text.startsWith('/start')) {
+        this.logger.log(`📥 Received /start via bot.on('message') from ${ctx.from?.id}`);
+        await this.handleStart(ctx);
+        return;
+      }
+      return next();
+    });
+  }
+
+  @Start()
+  async startCommand(@Ctx() ctx: Context) {
+    this.logger.log(`📥 Received /start via @Start() decorator from ${ctx.from?.id}`);
+    await this.handleStart(ctx);
+  }
+
+  async handleStart(ctx: Context) {
+    try {
+      const rawWebAppUrl =
+        this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
+        this.configService.get<string>('FRONTEND_URL') ||
+        '';
+      const webAppUrl = rawWebAppUrl.trim();
+
+      const botUsername =
+        this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
+        this.bot.botInfo?.username ||
+        'VibeRoomBot';
+
+      // Deep link payload (e.g. /start room_123)
+      // @ts-ignore
+      const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
+      // @ts-ignore
+      const payload = ctx.payload || (messageText ? messageText.split(' ')[1] : '');
+
+      this.logger.log(`handleStart: payload="${payload}", webAppUrl="${webAppUrl}", botUsername="${botUsername}"`);
+
+      // WebApp buttons in Telegram STRICTLY REQUIRE https://
+      const isHttps = webAppUrl.startsWith('https://');
+
+      if (payload && payload.startsWith('room_')) {
+        const inviteMsg =
+          `🍿 <b>Вас запросили до VIBEROOM!</b> 🍿\n\n` +
+          `🎬 Ваш друг чекає на вас у кімнаті для спільного перегляду!\n` +
+          `🎙️ Спілкуйтеся голосом, коментуйте в живому чаті та дивіться відео разом.\n\n` +
+          `Тисніть кнопку нижче, щоб зайти прямо зараз! 👇`;
+
+        if (isHttps) {
+          const roomInviteUrl = `${webAppUrl}${webAppUrl.includes('?') ? '&' : '?'}startapp=${payload}`;
+          await ctx.reply(inviteMsg, {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+              Markup.button.webApp('🎉 Приєднатися до кімнати', roomInviteUrl),
+            ]),
+          });
+        } else {
+          const tmeUrl = `https://t.me/${botUsername}?startapp=${payload}`;
+          await ctx.reply(inviteMsg, {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+              Markup.button.url('🎉 Приєднатися до кімнати', tmeUrl),
+            ]),
+          });
+        }
+        return;
+      }
+
+      const welcomeMsg =
+        `✨ <b>Ласкаво просимо до VIBEROOM!</b> ✨\n\n` +
+        `🎬 <b>Дивіться відео разом:</b> синхронний перегляд YouTube без затримок\n` +
+        `🎙️ <b>Голосовий звʼязок:</b> спілкуйтеся з друзями в реальному часі\n` +
+        `💬 <b>Живий чат:</b> коментуйте, діліться враженнями та реакціями\n` +
+        `👥 <b>Система друзів:</b> кличте друзів у кімнату в один клік\n\n` +
+        `Тисніть кнопку нижче, щоб розпочати перегляд! 👇`;
+
+      if (isHttps) {
+        await ctx.reply(welcomeMsg, {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            Markup.button.webApp('🚀 Відкрити VIBEROOM', webAppUrl),
+          ]),
+        });
+      } else {
+        const tmeUrl = `https://t.me/${botUsername}`;
+        await ctx.reply(welcomeMsg, {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            Markup.button.url('🚀 Відкрити VIBEROOM', tmeUrl),
+          ]),
+        });
+      }
+    } catch (err: any) {
+      this.logger.error(`Error in handleStart: ${err.message}`, err.stack);
+      // Emergency fallback: plain text message without markup or buttons
+      try {
+        await ctx.reply(
+          '✨ Ласкаво просимо до VIBEROOM! ✨\n\n🎬 Синхронний перегляд відео разом з друзями\n🎙️ Голосовий звʼязок та чат\n\nТисніть на кнопку "VIBE" внизу або у шапці чату, щоб відкрити додаток!',
+        );
+      } catch (fallbackErr: any) {
+        this.logger.error(`Emergency fallback failed: ${fallbackErr.message}`);
+      }
+    }
   }
 
   async sendRoomInviteNotification(
@@ -63,24 +159,35 @@ export class BotService {
     roomTitle: string,
     roomId: string,
   ): Promise<boolean> {
-    const webAppUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
+    const rawWebAppUrl =
       this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
-      'https://example.com';
-    const roomUrl = `${webAppUrl}?startapp=room_${roomId}`;
+      this.configService.get<string>('FRONTEND_URL') ||
+      '';
+    const webAppUrl = rawWebAppUrl.trim();
+    const botUsername =
+      this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
+      this.bot.botInfo?.username ||
+      'VibeRoomBot';
+    const isHttps = webAppUrl.startsWith('https://');
+
+    const roomUrl = isHttps
+      ? `${webAppUrl}${webAppUrl.includes('?') ? '&' : '?'}startapp=room_${roomId}`
+      : `https://t.me/${botUsername}?startapp=room_${roomId}`;
 
     const text =
-      `🔔 *Запрошення у VIBEROOM!*\n\n` +
-      `🍿 Користувач *${senderName}* кличе вас дивитися відео разом у кімнаті:\n` +
-      `🎬 *«${roomTitle}»*\n\n` +
+      `🔔 <b>Запрошення у VIBEROOM!</b>\n\n` +
+      `🍿 Користувач <b>${senderName}</b> кличе вас дивитися відео разом у кімнаті:\n` +
+      `🎬 <b>«${roomTitle}»</b>\n\n` +
       `Тисніть кнопку нижче, щоб увійти! 👇`;
 
     try {
       await this.bot.telegram.sendMessage(recipientTelegramId, text, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [Markup.button.webApp('🍿 Приєднатися до кімнати', roomUrl)],
+            isHttps
+              ? [Markup.button.webApp('🍿 Приєднатися до кімнати', roomUrl)]
+              : [Markup.button.url('🍿 Приєднатися до кімнати', roomUrl)],
           ],
         },
       });
@@ -89,7 +196,16 @@ export class BotService {
       this.logger.warn(
         `Failed to send telegram bot notification to ${recipientTelegramId}: ${err.message}`,
       );
-      return false;
+      // Fallback plain text send
+      try {
+        await this.bot.telegram.sendMessage(
+          recipientTelegramId,
+          `🔔 Запрошення у VIBEROOM!\n\nКористувач ${senderName} кличе вас дивитися: ${roomTitle}\n\nВхід: ${roomUrl}`,
+        );
+        return true;
+      } catch (e: any) {
+        return false;
+      }
     }
   }
 }
