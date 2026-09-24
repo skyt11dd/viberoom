@@ -70,8 +70,8 @@ export class BotService implements OnModuleInit {
       const rawWebAppUrl =
         this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
         this.configService.get<string>('FRONTEND_URL') ||
-        '';
-      const webAppUrl = rawWebAppUrl.trim();
+        'https://web-production-14e41a.up.railway.app';
+      const webAppUrl = rawWebAppUrl.trim().replace(/\/+$/, '');
 
       const botUsername =
         this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
@@ -162,8 +162,8 @@ export class BotService implements OnModuleInit {
     const rawWebAppUrl =
       this.configService.get<string>('TELEGRAM_WEBAPP_URL') ||
       this.configService.get<string>('FRONTEND_URL') ||
-      '';
-    const webAppUrl = rawWebAppUrl.trim();
+      'https://web-production-14e41a.up.railway.app';
+    const webAppUrl = rawWebAppUrl.trim().replace(/\/+$/, '');
     const botUsername =
       this.configService.get<string>('TELEGRAM_BOT_USERNAME') ||
       this.bot.botInfo?.username ||
