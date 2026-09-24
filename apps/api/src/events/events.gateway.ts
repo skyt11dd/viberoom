@@ -85,16 +85,20 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         include: { user: true },
       });
 
-      // 3. If NO members left in room: DELETE THE ROOM IMMEDIATELY
+      // 3. If NO members left in room: touch updatedAt so 5-minute inactivity countdown starts
       if (remainingMembers.length === 0) {
-        this.logger.log(`Room ${roomId} has 0 members left. Deleting room immediately.`);
-        this.server.to(roomId).emit('room:deleted');
-        await this.prisma.roomMember.deleteMany({ where: { roomId } }).catch(() => {});
-        await this.prisma.message.deleteMany({ where: { roomId } }).catch(() => {});
-        await this.prisma.invitation.deleteMany({ where: { roomId } }).catch(() => {});
-        await this.prisma.room.delete({ where: { id: roomId } }).catch((e) => {
-          this.logger.error(`Error deleting room ${roomId}: ${e.message}`);
+        this.logger.log(`Room ${roomId} has 0 members left. Inactivity timer started (5 min).`);
+        await this.prisma.room.update({
+          where: { id: roomId },
+          data: { updatedAt: new Date() },
+        }).catch(() => {});
+
+        this.server.to(roomId).emit('room:member_left', {
+          socketId,
+          userId: user.id,
+          roomId,
         });
+        this.server.to(roomId).emit('room:members_updated', []);
         return;
       }
 

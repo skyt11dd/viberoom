@@ -140,9 +140,15 @@ export default function Home() {
         method: 'POST',
         body: JSON.stringify({ title }),
       });
-      router.push(`/rooms/${room.id}`);
-    } catch (err) {
+      if (room && room.id) {
+        setRooms((prev) => [room, ...prev]);
+        setShowCreateModal(false);
+        setNewRoomTitle('');
+        router.push(`/rooms/${room.id}`);
+      }
+    } catch (err: any) {
       console.error('Помилка створення кімнати:', err);
+      alert(err.message || 'Не вдалося створити кімнату. Спробуйте ще раз.');
       setCreating(false);
     }
   };

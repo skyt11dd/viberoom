@@ -22,39 +22,19 @@ export class RoomsService implements OnModuleInit {
 
   async cleanupInactiveRooms() {
     try {
-      // 1. Delete all rooms with 0 members immediately
-      const emptyRooms = await this.prisma.room.findMany({
+      // Only purge rooms with 0 members that have been empty for at least 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const staleEmptyRooms = await this.prisma.room.findMany({
         where: {
+          updatedAt: { lt: fiveMinutesAgo },
           members: { none: {} },
         },
         select: { id: true },
       });
 
-      if (emptyRooms.length > 0) {
-        this.logger.log(`Purging ${emptyRooms.length} empty rooms...`);
-        for (const room of emptyRooms) {
-          await this.prisma.message.deleteMany({ where: { roomId: room.id } }).catch(() => {});
-          await this.prisma.invitation.deleteMany({ where: { roomId: room.id } }).catch(() => {});
-          await this.prisma.room.delete({ where: { id: room.id } }).catch(() => {});
-        }
-      }
-
-      // 2. Also purge rooms that have been inactive for more than 5 minutes
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      const staleRooms = await this.prisma.room.findMany({
-        where: {
-          updatedAt: { lt: fiveMinutesAgo },
-        },
-        include: {
-          _count: {
-            select: { members: true },
-          },
-        },
-      });
-
-      for (const room of staleRooms) {
-        // If stale and <= 1 member, delete it
-        if (room._count.members <= 1) {
+      if (staleEmptyRooms.length > 0) {
+        this.logger.log(`Purging ${staleEmptyRooms.length} empty inactive rooms...`);
+        for (const room of staleEmptyRooms) {
           await this.prisma.message.deleteMany({ where: { roomId: room.id } }).catch(() => {});
           await this.prisma.invitation.deleteMany({ where: { roomId: room.id } }).catch(() => {});
           await this.prisma.roomMember.deleteMany({ where: { roomId: room.id } }).catch(() => {});
@@ -67,15 +47,18 @@ export class RoomsService implements OnModuleInit {
   }
 
   async findAllActive() {
-    // Cleanup any lingering empty or stale rooms
+    // Cleanup any lingering empty stale rooms (5+ min empty)
     await this.cleanupInactiveRooms();
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
     return this.prisma.room.findMany({
       where: {
         privacy: 'PUBLIC',
-        members: {
-          some: {}, // Only show rooms with active participants
-        },
+        OR: [
+          { members: { some: {} } },
+          { createdAt: { gte: fiveMinutesAgo } }, // Newly created rooms remain visible during join
+        ],
       },
       include: {
         owner: {

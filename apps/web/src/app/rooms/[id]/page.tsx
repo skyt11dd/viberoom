@@ -116,97 +116,86 @@ export default function RoomPage() {
     }
   }, [handleLeaveRoom]);
 
+  // Only leave room and disconnect voice when unmounting the page entirely
   useEffect(() => {
-    const onUnload = () => {
-      if (socket) {
-        socket.emit('room:leave', { roomId });
-      }
-    };
-    window.addEventListener('beforeunload', onUnload);
-    window.addEventListener('pagehide', onUnload);
-    return () => {
-      window.removeEventListener('beforeunload', onUnload);
-      window.removeEventListener('pagehide', onUnload);
-    };
-  }, [socket, roomId]);
-
-  useEffect(() => {
-    if (socket && connected && room) {
-      socket.emit('room:join', { roomId });
-
-      socket.on('room:resync', (state: PlaybackState) => handleRemoteState(state));
-      socket.on('video:sync', (state: PlaybackState) => handleRemoteState(state));
-
-      // Real-time members sync
-      socket.on('room:members_updated', (updatedMembers: any[]) => {
-        setRoom((prev: any) => {
-          if (!prev) return prev;
-          return { ...prev, members: updatedMembers };
-        });
-      });
-
-      // Real-time host transfer sync
-      socket.on('room:host_transferred', ({ newHostId, newHostName }: { newHostId: string; newHostName: string }) => {
-        setRoom((prev: any) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            ownerId: newHostId,
-            members: (prev.members || []).map((m: any) => ({
-              ...m,
-              role: m.userId === newHostId ? 'OWNER' : (m.role === 'OWNER' ? 'MEMBER' : m.role),
-            })),
-          };
-        });
-        showToast(`👑 Новий хост кімнати: ${newHostName}`);
-      });
-
-      // Real-time member left sync
-      socket.on('room:member_left', ({ userId }: { userId: string }) => {
-        setRoom((prev: any) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            members: (prev.members || []).filter((m: any) => m.userId !== userId),
-          };
-        });
-      });
-
-      // Real-time room deleted sync
-      socket.on('room:deleted', () => {
-        showToast('Кімнату закрито (усі учасники вийшли)');
-        router.push('/');
-      });
-
-      socket.on('chat:receive', (msg: ChatMessage) => {
-        setMessages((prev) => [...prev, msg]);
-        const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
-        tg?.HapticFeedback?.impactOccurred?.('light');
-      });
-
-      socket.on('chat:reaction', (reaction: Reaction) => {
-        setReactions((prev) => [...prev, reaction]);
-        setTimeout(() => {
-          setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
-        }, 2000);
-      });
-    }
-
     return () => {
       leaveVoiceRoom();
-      if (socket) {
+      if (socket && roomId) {
         socket.emit('room:leave', { roomId });
-        socket.off('room:resync');
-        socket.off('video:sync');
-        socket.off('room:members_updated');
-        socket.off('room:host_transferred');
-        socket.off('room:member_left');
-        socket.off('room:deleted');
-        socket.off('chat:receive');
-        socket.off('chat:reaction');
       }
     };
-  }, [socket, connected, room, roomId, leaveVoiceRoom, router]);
+  }, [socket, roomId, leaveVoiceRoom]);
+
+  // Main socket event subscriptions (depends ONLY on socket connection and roomId)
+  useEffect(() => {
+    if (!socket || !connected || !roomId) return;
+
+    socket.emit('room:join', { roomId });
+
+    const handleResync = (state: PlaybackState) => handleRemoteState(state);
+    const handleVideoSync = (state: PlaybackState) => handleRemoteState(state);
+    const handleMembersUpdated = (updatedMembers: any[]) => {
+      setRoom((prev: any) => (prev ? { ...prev, members: updatedMembers } : prev));
+    };
+    const handleHostTransferred = ({ newHostId, newHostName }: { newHostId: string; newHostName: string }) => {
+      setRoom((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ownerId: newHostId,
+          members: (prev.members || []).map((m: any) => ({
+            ...m,
+            role: m.userId === newHostId ? 'OWNER' : (m.role === 'OWNER' ? 'MEMBER' : m.role),
+          })),
+        };
+      });
+      showToast(`👑 Новий хост кімнати: ${newHostName}`);
+    };
+    const handleMemberLeft = ({ userId }: { userId: string }) => {
+      setRoom((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          members: (prev.members || []).filter((m: any) => m.userId !== userId),
+        };
+      });
+    };
+    const handleRoomDeleted = () => {
+      showToast('Кімнату закрито');
+      router.push('/');
+    };
+    const handleChatReceive = (msg: ChatMessage) => {
+      setMessages((prev) => [...prev, msg]);
+      const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+      tg?.HapticFeedback?.impactOccurred?.('light');
+    };
+    const handleChatReaction = (reaction: Reaction) => {
+      setReactions((prev) => [...prev, reaction]);
+      setTimeout(() => {
+        setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
+      }, 2000);
+    };
+
+    socket.on('room:resync', handleResync);
+    socket.on('video:sync', handleVideoSync);
+    socket.on('room:members_updated', handleMembersUpdated);
+    socket.on('room:host_transferred', handleHostTransferred);
+    socket.on('room:member_left', handleMemberLeft);
+    socket.on('room:deleted', handleRoomDeleted);
+    socket.on('chat:receive', handleChatReceive);
+    socket.on('chat:reaction', handleChatReaction);
+
+    return () => {
+      socket.off('room:resync', handleResync);
+      socket.off('video:sync', handleVideoSync);
+      socket.off('room:members_updated', handleMembersUpdated);
+      socket.off('room:host_transferred', handleHostTransferred);
+      socket.off('room:member_left', handleMemberLeft);
+      socket.off('room:deleted', handleRoomDeleted);
+      socket.off('chat:receive', handleChatReceive);
+      socket.off('chat:reaction', handleChatReaction);
+    };
+  }, [socket, connected, roomId, router]);
 
   useEffect(() => {
     if (activeTab === 'chat') {
