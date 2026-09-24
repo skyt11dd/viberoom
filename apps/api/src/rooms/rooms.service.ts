@@ -20,25 +20,32 @@ export class RoomsService implements OnModuleInit {
     }, 30000);
   }
 
+  async deleteRoomCompletely(roomId: string) {
+    try {
+      await this.prisma.message.deleteMany({ where: { roomId } }).catch(() => {});
+      await this.prisma.invitation.deleteMany({ where: { roomId } }).catch(() => {});
+      await this.prisma.roomMember.deleteMany({ where: { roomId } }).catch(() => {});
+      await this.prisma.room.delete({ where: { id: roomId } }).catch(() => {});
+      this.logger.log(`Room ${roomId} was purged completely.`);
+    } catch (err: any) {
+      // Ignore if already deleted
+    }
+  }
+
   async cleanupInactiveRooms() {
     try {
-      // Only purge rooms with 0 members that have been empty for at least 5 minutes
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      const staleEmptyRooms = await this.prisma.room.findMany({
+      // Purge all rooms that have 0 members immediately
+      const emptyRooms = await this.prisma.room.findMany({
         where: {
-          updatedAt: { lt: fiveMinutesAgo },
           members: { none: {} },
         },
         select: { id: true },
       });
 
-      if (staleEmptyRooms.length > 0) {
-        this.logger.log(`Purging ${staleEmptyRooms.length} empty inactive rooms...`);
-        for (const room of staleEmptyRooms) {
-          await this.prisma.message.deleteMany({ where: { roomId: room.id } }).catch(() => {});
-          await this.prisma.invitation.deleteMany({ where: { roomId: room.id } }).catch(() => {});
-          await this.prisma.roomMember.deleteMany({ where: { roomId: room.id } }).catch(() => {});
-          await this.prisma.room.delete({ where: { id: room.id } }).catch(() => {});
+      if (emptyRooms.length > 0) {
+        this.logger.log(`Purging ${emptyRooms.length} empty rooms...`);
+        for (const room of emptyRooms) {
+          await this.deleteRoomCompletely(room.id);
         }
       }
     } catch (err: any) {
@@ -47,18 +54,13 @@ export class RoomsService implements OnModuleInit {
   }
 
   async findAllActive() {
-    // Cleanup any lingering empty stale rooms (5+ min empty)
+    // Purge any lingering empty rooms
     await this.cleanupInactiveRooms();
 
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    return this.prisma.room.findMany({
+    const rooms = await this.prisma.room.findMany({
       where: {
         privacy: 'PUBLIC',
-        OR: [
-          { members: { some: {} } },
-          { createdAt: { gte: fiveMinutesAgo } }, // Newly created rooms remain visible during join
-        ],
+        members: { some: {} }, // ONLY rooms with at least 1 member!
       },
       include: {
         owner: {
@@ -92,6 +94,8 @@ export class RoomsService implements OnModuleInit {
       },
       take: 50,
     });
+
+    return rooms.filter((r) => (r._count?.members ?? r.members?.length ?? 0) > 0);
   }
 
   async getUserStats(userId: string) {
@@ -197,28 +201,25 @@ export class RoomsService implements OnModuleInit {
   }
 
   async leaveRoom(userId: string, roomId: string) {
-    const existingMember = await this.prisma.roomMember.findUnique({
+    await this.prisma.roomMember.deleteMany({
       where: {
-        roomId_userId: {
-          roomId: roomId,
-          userId: userId,
-        },
+        roomId,
+        userId,
       },
-    });
-
-    if (!existingMember) {
-      return { success: true };
-    }
-
-    await this.prisma.roomMember.delete({
-      where: { id: existingMember.id },
-    });
-
-    // Touch room updatedAt
-    await this.prisma.room.update({
-      where: { id: roomId },
-      data: { updatedAt: new Date() },
     }).catch(() => {});
+
+    const remainingCount = await this.prisma.roomMember.count({
+      where: { roomId },
+    });
+
+    if (remainingCount === 0) {
+      await this.deleteRoomCompletely(roomId);
+    } else {
+      await this.prisma.room.update({
+        where: { id: roomId },
+        data: { updatedAt: new Date() },
+      }).catch(() => {});
+    }
 
     return { success: true };
   }

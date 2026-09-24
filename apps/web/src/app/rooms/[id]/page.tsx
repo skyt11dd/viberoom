@@ -115,6 +115,7 @@ export default function RoomPage() {
     if (socket) {
       socket.emit('room:leave', { roomId });
     }
+    fetchApi(`/rooms/${roomId}/leave`, { method: 'POST' }).catch(() => {});
     leaveVoiceRoom();
     router.push('/');
   }, [socket, roomId, leaveVoiceRoom, router]);
@@ -141,8 +142,35 @@ export default function RoomPage() {
       if (socket && roomId) {
         socket.emit('room:leave', { roomId });
       }
+      fetchApi(`/rooms/${roomId}/leave`, { method: 'POST' }).catch(() => {});
     };
   }, [socket, roomId, leaveVoiceRoom]);
+
+  // Pagehide/beforeunload listeners to guarantee room departure on mobile WebView close
+  useEffect(() => {
+    const handleExit = () => {
+      if (socket && roomId) {
+        socket.emit('room:leave', { roomId });
+      }
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/rooms/${roomId}/leave`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('beforeunload', handleExit);
+    window.addEventListener('pagehide', handleExit);
+    return () => {
+      window.removeEventListener('beforeunload', handleExit);
+      window.removeEventListener('pagehide', handleExit);
+    };
+  }, [socket, roomId]);
 
   // Main socket event subscriptions (depends ONLY on socket connection and roomId)
   useEffect(() => {
