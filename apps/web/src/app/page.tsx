@@ -206,8 +206,8 @@ export default function Home() {
           {/* Hardware & Telegram floating controls spacer */}
           <div
             style={{
-              height: 'calc(env(safe-area-inset-top, 47px) + 42px)',
-              minHeight: '92px',
+              height: 'calc(env(safe-area-inset-top, 47px) + 58px)',
+              minHeight: '110px',
             }}
             className="w-full shrink-0"
             aria-hidden="true"
