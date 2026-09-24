@@ -201,34 +201,47 @@ export default function Home() {
 
 
 
-        {/* ── Top Header with proper safe-area offset below Telegram controls ── */}
-        <header className="pt-header-safe pb-3 px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
-          <div className="flex items-center gap-2.5">
-            <Image
-              src="/logo.jpg"
-              alt="VIBEROOM"
-              width={28}
-              height={28}
-              className="rounded-[8px] ring-1 ring-white/10 shadow-sm"
-            />
-            <span className="text-[15px] font-bold tracking-tight text-white">
-              VIBEROOM
-            </span>
-          </div>
+        {/* ── Top Header with dedicated spacer for Telegram floating controls ── */}
+        <header className="px-4 pb-3 ios-glass-header flex flex-col shrink-0 sticky top-0 z-20">
+          {/* Hardware & Telegram floating controls spacer */}
+          <div
+            style={{
+              height: 'calc(env(safe-area-inset-top, 47px) + 42px)',
+              minHeight: '92px',
+            }}
+            className="w-full shrink-0"
+            aria-hidden="true"
+          />
 
-          {user && (
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                setNewRoomTitle(`Кімната ${user.displayName}`);
-                setShowCreateModal(true);
-              }}
-              className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-sm flex items-center gap-1"
-            >
-              <span className="text-sm font-bold leading-none">+</span>
-              <span>Створити</span>
-            </button>
-          )}
+          {/* Header row: Logo + Create Button */}
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5">
+              <Image
+                src="/logo.jpg"
+                alt="VIBEROOM"
+                width={28}
+                height={28}
+                className="rounded-[8px] ring-1 ring-white/10 shadow-sm"
+              />
+              <span className="text-[15px] font-bold tracking-tight text-white">
+                VIBEROOM
+              </span>
+            </div>
+
+            {user && (
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setNewRoomTitle(`Кімната ${user.displayName}`);
+                  setShowCreateModal(true);
+                }}
+                className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-sm flex items-center gap-1"
+              >
+                <span className="text-sm font-bold leading-none">+</span>
+                <span>Створити</span>
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Loading state for auth */}

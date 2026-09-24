@@ -391,83 +391,95 @@ export default function RoomPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Top Header (iOS Floating Glass) ── */}
-      <header className="pt-header-safe pb-3 px-3 sm:px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            onClick={handleLeaveRoom}
-            className="w-8 h-8 -ml-1 text-white/70 hover:text-white rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition"
-            aria-label="Назад"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-[14px] font-bold text-white truncate max-w-[130px] xs:max-w-[170px] sm:max-w-xs leading-tight tracking-tight">
-              {room.title}
-            </h1>
-            <span className="text-[11px] text-white/40 block leading-tight font-medium">
-              {isOwner ? '👑 Хост' : 'Учасник'}
-            </span>
+      {/* ── Top Header (iOS Floating Glass) with dedicated spacer ── */}
+      <header className="px-3 sm:px-4 pb-3 ios-glass-header flex flex-col shrink-0 sticky top-0 z-20">
+        {/* Hardware & Telegram floating controls spacer */}
+        <div
+          style={{
+            height: 'calc(env(safe-area-inset-top, 47px) + 42px)',
+            minHeight: '92px',
+          }}
+          className="w-full shrink-0"
+          aria-hidden="true"
+        />
+
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={handleLeaveRoom}
+              className="w-8 h-8 -ml-1 text-white/70 hover:text-white rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition"
+              aria-label="Назад"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-[14px] font-bold text-white truncate max-w-[130px] xs:max-w-[170px] sm:max-w-xs leading-tight tracking-tight">
+                {room.title}
+              </h1>
+              <span className="text-[11px] text-white/40 block leading-tight font-medium">
+                {isOwner ? '👑 Хост' : 'Учасник'}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Voice Mic Toggle (iOS Dynamic Island Style) */}
-          <button
-            onClick={toggleMute}
-            disabled={isMicInitializing}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition active:scale-95 flex items-center gap-1.5 border ${
-              isMicInitializing
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 cursor-wait'
-                : isMuted
-                ? 'bg-white/[0.08] border-white/10 text-white/60 hover:text-white'
-                : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm'
-            }`}
-            title={
-              isMicInitializing
-                ? 'Запит дозволу на мікрофон...'
-                : isMuted
-                ? 'Увімкнути мікрофон'
-                : 'Вимкнути мікрофон'
-            }
-          >
-            {isMicInitializing ? (
-              <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-            ) : isMuted ? (
-              <>
-                <span className="text-xs">🔇</span>
-                <span className="text-[11px]">Мʼют</span>
-              </>
-            ) : (
-              <>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[11px]">Голос</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Voice Mic Toggle (iOS Dynamic Island Style) */}
+            <button
+              onClick={toggleMute}
+              disabled={isMicInitializing}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition active:scale-95 flex items-center gap-1.5 border ${
+                isMicInitializing
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 cursor-wait'
+                  : isMuted
+                  ? 'bg-white/[0.08] border-white/10 text-white/60 hover:text-white'
+                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm'
+              }`}
+              title={
+                isMicInitializing
+                  ? 'Запит дозволу на мікрофон...'
+                  : isMuted
+                  ? 'Увімкнути мікрофон'
+                  : 'Вимкнути мікрофон'
+              }
+            >
+              {isMicInitializing ? (
+                <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              ) : isMuted ? (
+                <>
+                  <span className="text-xs">🔇</span>
+                  <span className="text-[11px]">Мʼют</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[11px]">Голос</span>
+                </>
+              )}
+            </button>
 
-          {/* Members Count Badge */}
-          <button
-            onClick={() => setActiveTab(activeTab === 'members' ? 'chat' : 'members')}
-            className={`px-2.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition active:scale-95 border ${
-              activeTab === 'members'
-                ? 'bg-white text-black border-white shadow-sm'
-                : 'bg-white/[0.08] text-white/70 border-white/10 hover:text-white'
-            }`}
-          >
-            <span className="text-xs">👥</span>
-            <span>{room.members?.length || 1}</span>
-          </button>
+            {/* Members Count Badge */}
+            <button
+              onClick={() => setActiveTab(activeTab === 'members' ? 'chat' : 'members')}
+              className={`px-2.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition active:scale-95 border ${
+                activeTab === 'members'
+                  ? 'bg-white text-black border-white shadow-sm'
+                  : 'bg-white/[0.08] text-white/70 border-white/10 hover:text-white'
+              }`}
+            >
+              <span className="text-xs">👥</span>
+              <span>{room.members?.length || 1}</span>
+            </button>
 
-          {/* Invite Friend Modal trigger */}
-          <button
-            onClick={openInviteModal}
-            className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-sm"
-          >
-            + Друзі
-          </button>
+            {/* Invite Friend Modal trigger */}
+            <button
+              onClick={openInviteModal}
+              className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-sm"
+            >
+              + Друзі
+            </button>
+          </div>
         </div>
       </header>
 
