@@ -63,7 +63,7 @@ body {
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   box-sizing: content-box !important;
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: max(50px, env(safe-area-inset-top, 0px));
 }
 
 .ios-glass-bottom {
