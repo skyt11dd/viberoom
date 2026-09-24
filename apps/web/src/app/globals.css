@@ -15,11 +15,11 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  background: #000000 !important;
+  background: #12141f !important;
 }
 
 body {
-  background: #000000 !important;
+  background: #12141f !important;
   color: #ffffff !important;
   color-scheme: dark !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -27,50 +27,64 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Force dark theme everywhere regardless of Telegram light mode */
+/* Force rich dark graphite/slate theme */
 :root {
   color-scheme: dark !important;
-  --bg: #000000 !important;
-  --bg-secondary: #121216 !important;
+  --bg: #12141f !important;
+  --bg-secondary: #1a1e2e !important;
   --text: #ffffff !important;
-  --text-hint: rgba(255, 255, 255, 0.5) !important;
+  --text-hint: rgba(255, 255, 255, 0.6) !important;
   --link: #007aff !important;
   --button: #ffffff !important;
   --button-text: #000000 !important;
   --accent: #8b5cf6 !important;
 }
 
-/* iOS Glass Surfaces */
+/* iOS Glass Surfaces (Lighter & higher contrast) */
 .ios-glass {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
 }
 
 .ios-glass-elevated {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(36px) saturate(200%);
   -webkit-backdrop-filter: blur(36px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
 
 .ios-glass-header {
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 20, 31, 0.88);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  box-sizing: content-box !important;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .ios-glass-bottom {
-  background: rgba(12, 12, 16, 0.85);
+  background: rgba(18, 20, 31, 0.92);
   backdrop-filter: blur(30px) saturate(190%);
   -webkit-backdrop-filter: blur(30px) saturate(190%);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Safe area padding utilities */
+.pt-safe {
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.pb-safe {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 /* Clean iOS Scrollbar */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }

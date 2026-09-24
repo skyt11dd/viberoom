@@ -348,7 +348,7 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#090a10] text-white">
+      <div className="flex h-screen items-center justify-center bg-[#12141f] text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-white/50">Завантаження кімнати...</p>
@@ -359,7 +359,7 @@ export default function RoomPage() {
 
   if (!room) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-[#090a10] text-white p-6 text-center">
+      <div className="flex h-screen flex-col items-center justify-center bg-[#12141f] text-white p-6 text-center">
         <p className="text-base font-medium text-red-400 mb-4">Кімнату не знайдено або термін її дії закінчився.</p>
         <button
           onClick={() => router.push('/')}
@@ -376,7 +376,7 @@ export default function RoomPage() {
     room?.members?.find((m: any) => m.userId === user?.id)?.role === 'OWNER';
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#090a10] text-white overflow-hidden select-none relative">
+    <div className="flex flex-col h-[100dvh] bg-[#12141f] text-white overflow-hidden select-none relative">
       {/* ── Toast notification banner ── */}
       <AnimatePresence>
         {toastMessage && (
@@ -472,9 +472,9 @@ export default function RoomPage() {
       </header>
 
       {/* ── Main Layout: Mobile Column / Desktop Row ── */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 bg-black">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 bg-[#12141f]">
         {/* Left / Top: Video Section */}
-        <div className="flex flex-col md:flex-1 shrink-0 md:shrink bg-black relative border-b md:border-b-0 md:border-r border-white/[0.08]">
+        <div className="flex flex-col md:flex-1 shrink-0 md:shrink bg-[#12141f] relative border-b md:border-b-0 md:border-r border-white/[0.08]">
           {/* 16:9 Video Area */}
           <div className="w-full aspect-video bg-black relative overflow-hidden flex items-center justify-center">
             {/* Player Element */}
@@ -584,7 +584,7 @@ export default function RoomPage() {
         </div>
 
         {/* Right / Bottom: Content Section (Chat / Members) */}
-        <div className="flex-1 flex flex-col min-h-0 bg-black md:max-w-md lg:max-w-lg md:border-l md:border-white/[0.08]">
+        <div className="flex-1 flex flex-col min-h-0 bg-[#12141f] md:max-w-md lg:max-w-lg md:border-l md:border-white/[0.08]">
           {/* iOS Segmented Tabs Control */}
           <div className="p-1 mx-3 my-2 rounded-full bg-white/[0.06] border border-white/[0.06] backdrop-blur-xl flex items-center justify-between shrink-0">
             <div className="flex flex-1 gap-1">
@@ -680,7 +680,7 @@ export default function RoomPage() {
               </div>
 
               {/* Quick Reactions Bar (iOS Floating Pills) */}
-              <div className="px-3 py-1.5 border-t border-white/[0.06] flex items-center justify-around bg-black shrink-0">
+              <div className="px-3 py-1.5 border-t border-white/[0.06] flex items-center justify-around bg-[#12141f]/90 backdrop-blur-md shrink-0">
                 {['❤️', '🔥', '😂', '🎉', '👍', '🍿'].map((emoji) => (
                   <button
                     key={emoji}

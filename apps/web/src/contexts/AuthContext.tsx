@@ -40,6 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (tg) {
         tg.ready();
         tg.expand();
+        try {
+          if (typeof tg.requestFullscreen === 'function') {
+            tg.requestFullscreen();
+          }
+          if (typeof tg.disableVerticalSwipes === 'function') {
+            tg.disableVerticalSwipes();
+          }
+          tg.setHeaderColor?.('#12141f');
+          tg.setBackgroundColor?.('#12141f');
+        } catch (e) {}
       }
 
       const initData = tg?.initData;

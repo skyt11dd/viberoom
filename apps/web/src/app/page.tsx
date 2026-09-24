@@ -162,7 +162,7 @@ export default function Home() {
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05, filter: 'blur(16px)' }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black text-white select-none pointer-events-none"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#12141f] text-white select-none pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.85, opacity: 0 }}
@@ -192,10 +192,10 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ── Main App Content ── */}
-      <div className="flex flex-col min-h-[100dvh] bg-black text-white select-none relative overflow-x-hidden">
+      <div className="flex flex-col min-h-[100dvh] bg-[#12141f] text-white select-none relative overflow-x-hidden">
         {/* Subtle Ambient Top Blur */}
         <div
-          className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[340px] h-[180px] bg-indigo-500/10 rounded-full blur-[100px] z-0"
+          className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[340px] h-[180px] bg-indigo-500/15 rounded-full blur-[100px] z-0"
           aria-hidden="true"
         />
 
