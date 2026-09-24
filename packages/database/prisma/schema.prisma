@@ -42,7 +42,7 @@ model Room {
   privacy     String       @default("PUBLIC")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  owner       User         @relation(fields: [ownerId], references: [id])
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members     RoomMember[]
   invitations Invitation[]
   messages    Message[]
@@ -54,8 +54,8 @@ model RoomMember {
   userId    String
   role      String   @default("MEMBER")
   createdAt DateTime @default(now())
-  room      Room     @relation(fields: [roomId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
 }
@@ -70,9 +70,9 @@ model Invitation {
   expiresAt           DateTime
   createdAt           DateTime  @default(now())
   acceptedAt          DateTime?
-  room                Room      @relation(fields: [roomId], references: [id])
-  sender              User      @relation("Sender", fields: [senderId], references: [id])
-  recipient           User?     @relation("Recipient", fields: [recipientTelegramId], references: [telegramId])
+  room                Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender              User      @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient           User?     @relation("Recipient", fields: [recipientTelegramId], references: [telegramId], onDelete: Cascade)
 }
 
 model Message {
@@ -81,6 +81,6 @@ model Message {
   userId    String
   text      String
   createdAt DateTime @default(now())
-  room      Room     @relation(fields: [roomId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

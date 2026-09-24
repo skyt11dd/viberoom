@@ -18,22 +18,24 @@ html, body {
 }
 
 body {
-  background: var(--tg-theme-bg-color, #1c1c1e);
-  color: var(--tg-theme-text-color, #ffffff);
+  background: #090a10 !important;
+  color: #ffffff !important;
+  color-scheme: dark !important;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Use Telegram theme colors with fallbacks */
+/* Force dark theme everywhere regardless of Telegram light mode */
 :root {
-  --bg: var(--tg-theme-bg-color, #1c1c1e);
-  --bg-secondary: var(--tg-theme-secondary-bg-color, #2c2c2e);
-  --text: var(--tg-theme-text-color, #ffffff);
-  --text-hint: var(--tg-theme-hint-color, #8e8e93);
-  --link: var(--tg-theme-link-color, #007aff);
-  --button: var(--tg-theme-button-color, #007aff);
-  --button-text: var(--tg-theme-button-text-color, #ffffff);
-  --accent: #8b5cf6;
+  color-scheme: dark !important;
+  --bg: #090a10 !important;
+  --bg-secondary: #121522 !important;
+  --text: #ffffff !important;
+  --text-hint: #94a3b8 !important;
+  --link: #60a5fa !important;
+  --button: #3b82f6 !important;
+  --button-text: #ffffff !important;
+  --accent: #8b5cf6 !important;
 }
 
 ::-webkit-scrollbar { width: 4px; }

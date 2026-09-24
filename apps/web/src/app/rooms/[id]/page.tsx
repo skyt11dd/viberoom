@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { fetchApi } from '../../../lib/api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSocket } from '../../../contexts/SocketContext';
@@ -93,6 +93,43 @@ export default function RoomPage() {
     }
   }, [roomId, user]);
 
+  const handleLeaveRoom = useCallback(() => {
+    if (socket) {
+      socket.emit('room:leave', { roomId });
+    }
+    leaveVoiceRoom();
+    router.push('/');
+  }, [socket, roomId, leaveVoiceRoom, router]);
+
+  useEffect(() => {
+    const tg = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : null;
+    if (tg?.BackButton) {
+      tg.BackButton.show();
+      const onBack = () => {
+        handleLeaveRoom();
+      };
+      tg.BackButton.onClick(onBack);
+      return () => {
+        tg.BackButton.offClick(onBack);
+        tg.BackButton.hide();
+      };
+    }
+  }, [handleLeaveRoom]);
+
+  useEffect(() => {
+    const onUnload = () => {
+      if (socket) {
+        socket.emit('room:leave', { roomId });
+      }
+    };
+    window.addEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide', onUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      window.removeEventListener('pagehide', onUnload);
+    };
+  }, [socket, roomId]);
+
   useEffect(() => {
     if (socket && connected && room) {
       socket.emit('room:join', { roomId });
@@ -106,6 +143,39 @@ export default function RoomPage() {
           if (!prev) return prev;
           return { ...prev, members: updatedMembers };
         });
+      });
+
+      // Real-time host transfer sync
+      socket.on('room:host_transferred', ({ newHostId, newHostName }: { newHostId: string; newHostName: string }) => {
+        setRoom((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            ownerId: newHostId,
+            members: (prev.members || []).map((m: any) => ({
+              ...m,
+              role: m.userId === newHostId ? 'OWNER' : (m.role === 'OWNER' ? 'MEMBER' : m.role),
+            })),
+          };
+        });
+        showToast(`👑 Новий хост кімнати: ${newHostName}`);
+      });
+
+      // Real-time member left sync
+      socket.on('room:member_left', ({ userId }: { userId: string }) => {
+        setRoom((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            members: (prev.members || []).filter((m: any) => m.userId !== userId),
+          };
+        });
+      });
+
+      // Real-time room deleted sync
+      socket.on('room:deleted', () => {
+        showToast('Кімнату закрито (усі учасники вийшли)');
+        router.push('/');
       });
 
       socket.on('chat:receive', (msg: ChatMessage) => {
@@ -129,11 +199,14 @@ export default function RoomPage() {
         socket.off('room:resync');
         socket.off('video:sync');
         socket.off('room:members_updated');
+        socket.off('room:host_transferred');
+        socket.off('room:member_left');
+        socket.off('room:deleted');
         socket.off('chat:receive');
         socket.off('chat:reaction');
       }
     };
-  }, [socket, connected, room, roomId, leaveVoiceRoom]);
+  }, [socket, connected, room, roomId, leaveVoiceRoom, router]);
 
   useEffect(() => {
     if (activeTab === 'chat') {
@@ -286,7 +359,7 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--bg,#0e0e11)] text-white">
+      <div className="flex h-screen items-center justify-center bg-[#090a10] text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-white/50">Завантаження кімнати...</p>
@@ -297,7 +370,7 @@ export default function RoomPage() {
 
   if (!room) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg,#0e0e11)] text-white p-6 text-center">
+      <div className="flex h-screen flex-col items-center justify-center bg-[#090a10] text-white p-6 text-center">
         <p className="text-base font-medium text-red-400 mb-4">Кімнату не знайдено або термін її дії закінчився.</p>
         <button
           onClick={() => router.push('/')}
@@ -314,7 +387,7 @@ export default function RoomPage() {
     room?.members?.find((m: any) => m.userId === user?.id)?.role === 'OWNER';
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[var(--bg,#0e0e11)] text-white overflow-hidden select-none relative">
+    <div className="flex flex-col h-[100dvh] bg-[#090a10] text-white overflow-hidden select-none relative">
       {/* ── Toast notification banner ── */}
       <AnimatePresence>
         {toastMessage && (
@@ -330,10 +403,10 @@ export default function RoomPage() {
       </AnimatePresence>
 
       {/* ── Top Header ── */}
-      <header className="h-14 px-3 sm:px-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[var(--bg,#0e0e11)]/95 backdrop-blur-md z-20">
+      <header className="h-14 px-3 sm:px-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#090a10] backdrop-blur-md z-20">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={() => router.push('/')}
+            onClick={handleLeaveRoom}
             className="p-1.5 -ml-1 text-white/70 hover:text-white rounded-lg active:scale-95 transition"
             aria-label="Назад"
           >
@@ -345,7 +418,7 @@ export default function RoomPage() {
             <h1 className="text-sm font-semibold text-white truncate max-w-[130px] xs:max-w-[170px] sm:max-w-xs leading-tight">
               {room.title}
             </h1>
-            <span className="text-[11px] text-white/40 block leading-tight">
+            <span className="text-[11px] text-white/50 block leading-tight">
               {isOwner ? '👑 Хост' : 'Учасник'}
             </span>
           </div>
@@ -518,9 +591,9 @@ export default function RoomPage() {
         </div>
 
         {/* Right / Bottom: Content Section (Chat / Members) */}
-        <div className="flex-1 flex flex-col min-h-0 bg-[var(--bg,#0e0e11)] md:max-w-md lg:max-w-lg md:border-l md:border-white/10">
+        <div className="flex-1 flex flex-col min-h-0 bg-[#090a10] md:max-w-md lg:max-w-lg md:border-l md:border-white/10">
           {/* Segmented Tabs Control */}
-          <div className="h-10 px-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-[var(--bg,#0e0e11)]">
+          <div className="h-10 px-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#090a10]">
             <div className="flex gap-1">
               <button
                 onClick={() => setActiveTab('chat')}
@@ -600,8 +673,8 @@ export default function RoomPage() {
                           <div
                             className={`px-3 py-2 rounded-2xl text-xs sm:text-sm leading-relaxed break-words ${
                               isMe
-                                ? 'bg-[var(--button,#007aff)] text-white rounded-tr-xs'
-                                : 'bg-[var(--bg-secondary,#1a1a1e)] text-white/90 border border-white/5 rounded-tl-xs'
+                                ? 'bg-[#2563eb] text-white rounded-tr-xs'
+                                : 'bg-[#181c2e] text-white border border-white/10 rounded-tl-xs'
                             }`}
                           >
                             {msg.text}
@@ -615,7 +688,7 @@ export default function RoomPage() {
               </div>
 
               {/* Quick Reactions Bar */}
-              <div className="px-3 py-1.5 border-t border-white/5 flex items-center justify-around bg-[var(--bg,#0e0e11)] shrink-0">
+              <div className="px-3 py-1.5 border-t border-white/5 flex items-center justify-around bg-[#090a10] shrink-0">
                 {['❤️', '🔥', '😂', '🎉', '👍'].map((emoji) => (
                   <button
                     key={emoji}
@@ -631,19 +704,19 @@ export default function RoomPage() {
               {/* Chat Input Bar */}
               <form
                 onSubmit={sendChat}
-                className="p-2 sm:p-2.5 bg-[var(--bg,#0e0e11)] border-t border-white/10 flex items-center gap-2 shrink-0 pb-[max(8px,env(safe-area-inset-bottom))]"
+                className="p-2 sm:p-2.5 bg-[#090a10] border-t border-white/10 flex items-center gap-2 shrink-0 pb-[max(8px,env(safe-area-inset-bottom))]"
               >
                 <input
                   type="text"
                   placeholder="Повідомлення..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-[var(--bg-secondary,#1a1a1e)] border border-white/10 focus:border-[var(--button,#007aff)] rounded-full px-4 py-2 text-xs sm:text-sm text-white placeholder-white/35 focus:outline-none transition"
+                  className="flex-1 bg-[#141724] border border-white/15 focus:border-[#3b82f6] rounded-full px-4 py-2 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none transition"
                 />
                 <button
                   type="submit"
                   disabled={!chatInput.trim()}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[var(--button,#007aff)] disabled:opacity-30 disabled:pointer-events-none text-white flex items-center justify-center shrink-0 transition active:scale-90 shadow-sm"
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#2563eb] disabled:opacity-30 disabled:pointer-events-none text-white flex items-center justify-center shrink-0 transition active:scale-90 shadow-sm"
                   aria-label="Надіслати"
                 >
                   <svg
@@ -672,7 +745,7 @@ export default function RoomPage() {
               </div>
 
               {room.members?.map((member: any) => {
-                const isHost = member.role === 'OWNER' || member.userId === room.ownerId;
+                const isHost = member.userId === room.ownerId;
                 const isMe = member.userId === user?.id;
                 const u = member.user || {};
 
@@ -680,17 +753,17 @@ export default function RoomPage() {
                   <div
                     key={member.id || member.userId}
                     onClick={() => setSelectedProfile({ ...u, isHost })}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/5 cursor-pointer hover:bg-white/5 active:scale-[0.99] transition"
+                    className="flex items-center justify-between p-3 rounded-xl bg-[#121522] border border-white/10 cursor-pointer hover:bg-white/5 active:scale-[0.99] transition shadow-sm"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {u.avatarUrl ? (
                         <img
                           src={u.avatarUrl}
                           alt=""
-                          className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+                          className="w-10 h-10 rounded-full object-cover shrink-0 ring-1 ring-white/15"
                         />
                       ) : (
-                        <div className="w-9 h-9 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/20 flex items-center justify-center text-xs font-semibold shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/20 flex items-center justify-center text-xs font-semibold shrink-0">
                           {u.displayName?.charAt(0) || 'U'}
                         </div>
                       )}
@@ -701,13 +774,13 @@ export default function RoomPage() {
                             {u.displayName || 'Користувач'}
                           </span>
                           {isMe && (
-                            <span className="text-[10px] text-white/40 bg-white/10 px-1.5 py-0.2 rounded font-normal">
+                            <span className="text-[10px] text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.2 rounded font-normal">
                               ви
                             </span>
                           )}
                         </div>
                         {u.username && (
-                          <span className="text-[11px] text-white/40 block leading-none">
+                          <span className="text-[11px] text-white/50 block leading-none mt-0.5">
                             @{u.username}
                           </span>
                         )}
@@ -716,11 +789,11 @@ export default function RoomPage() {
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       {isHost && (
-                        <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
                           👑 Хост
                         </span>
                       )}
-                      <span className="text-white/30 text-xs">›</span>
+                      <span className="text-white/40 text-xs">›</span>
                     </div>
                   </div>
                 );
@@ -748,12 +821,12 @@ export default function RoomPage() {
       {/* ── User Profile Modal / Sheet ── */}
       <AnimatePresence>
         {selectedProfile && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3">
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 40 }}
-              className="w-full max-w-xs rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/10 p-5 shadow-2xl flex flex-col items-center text-center relative"
+              className="w-full max-w-xs rounded-2xl bg-[#121522] border border-white/15 p-5 shadow-2xl flex flex-col items-center text-center relative"
             >
               <button
                 onClick={() => setSelectedProfile(null)}
@@ -818,7 +891,7 @@ export default function RoomPage() {
                         window.open(link, '_blank');
                       }
                     }}
-                    className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[var(--button,#007aff)] text-white hover:opacity-90 active:scale-95 transition flex items-center justify-center gap-1.5 shadow-sm"
+                    className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[#2563eb] text-white hover:bg-blue-600 active:scale-95 transition flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     <span>💬 Написати в Telegram</span>
                   </button>
@@ -839,12 +912,12 @@ export default function RoomPage() {
       {/* ── Invite Friends & Share Modal ── */}
       <AnimatePresence>
         {showInviteModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3">
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 40 }}
-              className="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary,#1a1a1e)] border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]"
+              className="w-full max-w-sm rounded-2xl bg-[#121522] border border-white/15 p-5 shadow-2xl flex flex-col max-h-[85vh]"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -878,7 +951,7 @@ export default function RoomPage() {
                   </button>
                   <button
                     onClick={handleShareToTelegram}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[var(--button,#007aff)] text-white hover:opacity-90 transition active:scale-95"
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#2563eb] text-white hover:bg-blue-600 transition active:scale-95"
                   >
                     Шерити
                   </button>
