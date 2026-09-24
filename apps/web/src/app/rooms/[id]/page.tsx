@@ -497,11 +497,18 @@ export default function RoomPage() {
               <div id="yt-player" className="w-full h-full" />
             </div>
 
-            {/* Empty State / Video Placeholder (Apple TV AirPlay Style) */}
+            {/* Empty State / Video Placeholder (Apple Vision / TV Style) */}
             {!hasVideo && (
               <div className="flex flex-col items-center justify-center p-4 text-center z-0 max-w-sm">
-                <div className="w-12 h-12 rounded-[18px] bg-white/[0.06] border border-white/10 flex items-center justify-center text-xl mb-3 shadow-inner">
-                  🎬
+                <div className="relative mb-3 flex items-center justify-center">
+                  <div className="absolute w-14 h-14 bg-purple-500/20 rounded-full blur-xl animate-pulse" />
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+                    className="w-12 h-12 rounded-[18px] bg-white/[0.08] border border-white/15 flex items-center justify-center text-xl relative z-10 shadow-lg"
+                  >
+                    🎬
+                  </motion.div>
                 </div>
                 <p className="text-[14px] font-semibold text-white mb-1">Зараз нічого не грає</p>
                 <p className="text-xs text-white/40 max-w-xs mb-4">
@@ -597,228 +604,266 @@ export default function RoomPage() {
 
         {/* Right / Bottom: Content Section (Chat / Members) */}
         <div className="flex-1 flex flex-col min-h-0 bg-[#12141f] md:max-w-md lg:max-w-lg md:border-l md:border-white/[0.08]">
-          {/* iOS Segmented Tabs Control */}
-          <div className="p-1 mx-3 my-2 rounded-full bg-white/[0.06] border border-white/[0.06] backdrop-blur-xl flex items-center justify-between shrink-0">
-            <div className="flex flex-1 gap-1">
+          {/* iOS Segmented Tabs Control with Spring Sliding Pill */}
+          <div className="p-1 mx-3 my-2 rounded-full bg-white/[0.06] border border-white/[0.08] backdrop-blur-xl flex items-center justify-between shrink-0">
+            <div className="flex flex-1 gap-1 relative">
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`flex-1 py-1.5 rounded-full text-xs font-semibold transition ${
-                  activeTab === 'chat'
-                    ? 'bg-white text-black shadow-sm'
-                    : 'text-white/50 hover:text-white'
-                }`}
+                className="flex-1 py-1.5 rounded-full text-xs font-semibold relative transition text-center select-none"
               >
-                Чат {messages.length > 0 && `(${messages.length})`}
+                {activeTab === 'chat' && (
+                  <motion.div
+                    layoutId="roomTabIndicator"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    className="absolute inset-0 bg-white rounded-full shadow-sm z-0"
+                  />
+                )}
+                <span className={`relative z-10 font-bold transition-colors ${activeTab === 'chat' ? 'text-black' : 'text-white/60 hover:text-white'}`}>
+                  Чат {messages.length > 0 && `(${messages.length})`}
+                </span>
               </button>
+
               <button
                 onClick={() => setActiveTab('members')}
-                className={`flex-1 py-1.5 rounded-full text-xs font-semibold transition ${
-                  activeTab === 'members'
-                    ? 'bg-white text-black shadow-sm'
-                    : 'text-white/50 hover:text-white'
-                }`}
+                className="flex-1 py-1.5 rounded-full text-xs font-semibold relative transition text-center select-none"
               >
-                Учасники ({room.members?.length || 1})
+                {activeTab === 'members' && (
+                  <motion.div
+                    layoutId="roomTabIndicator"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    className="absolute inset-0 bg-white rounded-full shadow-sm z-0"
+                  />
+                )}
+                <span className={`relative z-10 font-bold transition-colors ${activeTab === 'members' ? 'text-black' : 'text-white/60 hover:text-white'}`}>
+                  Учасники ({room.members?.length || 1})
+                </span>
               </button>
             </div>
-            <div className="px-3 text-[11px] text-emerald-400 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+
+            <div className="px-3 text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5 shrink-0">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
               <span>Live</span>
             </div>
           </div>
 
-          {/* Tab 1: Chat Content */}
-          {activeTab === 'chat' && (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Messages list */}
-              <div className="flex-1 p-3 overflow-y-auto space-y-2.5 min-h-0">
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                    <p className="text-xs text-white/30 font-medium">Поки що немає повідомлень</p>
-                    <p className="text-[11px] text-white/20 mt-0.5">Напишіть щось або надішліть реакцію! 👋</p>
-                  </div>
-                ) : (
-                  messages.map((msg) => {
-                    const isMe = msg.user.id === user?.id;
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {!isMe && (
-                          <div
-                            onClick={() => setSelectedProfile(msg.user)}
-                            className="shrink-0 pt-0.5 cursor-pointer active:scale-90 transition"
-                            title="Переглянути профіль"
-                          >
-                            {msg.user.avatarUrl ? (
-                              <img
-                                src={msg.user.avatarUrl}
-                                alt=""
-                                className="w-7 h-7 rounded-[10px] object-cover ring-1 ring-white/10"
-                              />
-                            ) : (
-                              <div className="w-7 h-7 rounded-[10px] bg-white/10 flex items-center justify-center text-[11px] font-semibold text-white/80">
-                                {msg.user.displayName.charAt(0)}
-                              </div>
+          {/* Tab Content with Fluid Transition */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'chat' ? (
+              <motion.div
+                key="chat-tab"
+                initial={{ opacity: 0, y: 8, filter: 'blur(3px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="flex-1 flex flex-col min-h-0"
+              >
+                {/* Messages list */}
+                <div className="flex-1 p-3 overflow-y-auto space-y-2.5 min-h-0">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                      <p className="text-xs text-white/35 font-medium">Поки що немає повідомлень</p>
+                      <p className="text-[11px] text-white/20 mt-0.5">Напишіть щось або надішліть реакцію! 👋</p>
+                    </div>
+                  ) : (
+                    messages.map((msg) => {
+                      const isMe = msg.user.id === user?.id;
+                      return (
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {!isMe && (
+                            <div
+                              onClick={() => setSelectedProfile(msg.user)}
+                              className="shrink-0 pt-0.5 cursor-pointer active:scale-90 transition"
+                              title="Переглянути профіль"
+                            >
+                              {msg.user.avatarUrl ? (
+                                <img
+                                  src={msg.user.avatarUrl}
+                                  alt=""
+                                  className="w-7 h-7 rounded-[10px] object-cover ring-1 ring-white/10"
+                                />
+                              ) : (
+                                <div className="w-7 h-7 rounded-[10px] bg-white/10 flex items-center justify-center text-[11px] font-semibold text-white/80">
+                                  {msg.user.displayName.charAt(0)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[82%]`}>
+                            {!isMe && (
+                              <button
+                                onClick={() => setSelectedProfile(msg.user)}
+                                className="text-[11px] text-white/40 mb-1 ml-1 font-medium hover:text-white transition text-left"
+                              >
+                                {msg.user.displayName}
+                              </button>
                             )}
+                            <div
+                              className={`px-3.5 py-2 rounded-2xl text-[13px] leading-relaxed break-words ${
+                                isMe
+                                  ? 'bg-[#007aff] text-white rounded-tr-xs shadow-sm font-normal'
+                                  : 'ios-glass text-white/90 rounded-tl-xs'
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Quick Reactions Bar (iOS Floating Pills with Spring Bounce) */}
+                <div className="px-3 py-1.5 border-t border-white/[0.06] flex items-center justify-around bg-[#12141f]/90 backdrop-blur-md shrink-0">
+                  {['❤️', '🔥', '😂', '🎉', '👍', '🍿'].map((emoji) => (
+                    <motion.button
+                      key={emoji}
+                      whileHover={{ scale: 1.25, y: -2 }}
+                      whileTap={{ scale: 0.82 }}
+                      onClick={() => sendReaction(emoji)}
+                      className="w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/10 transition flex items-center justify-center text-lg select-none"
+                      aria-label={`Реакція ${emoji}`}
+                    >
+                      {emoji}
+                    </motion.button>
+                  ))}
+                </div>
+
+                {/* Chat Input Bar */}
+                <form
+                  onSubmit={sendChat}
+                  className="p-2 sm:p-2.5 ios-glass-bottom flex items-center gap-2 shrink-0 pb-[max(8px,env(safe-area-inset-bottom))]"
+                >
+                  <input
+                    type="text"
+                    placeholder="Повідомлення..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    className="flex-1 bg-white/[0.07] border border-white/10 focus:border-white/30 rounded-full px-4 py-2 text-xs sm:text-sm text-white placeholder-white/30 focus:outline-none transition"
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center shrink-0 transition shadow-sm"
+                    aria-label="Надіслати"
+                  >
+                    <svg
+                      className="w-4 h-4 translate-x-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.4}
+                        d="M5 12h14M12 5l7 7-7 7"
+                      />
+                    </svg>
+                  </motion.button>
+                </form>
+              </motion.div>
+            ) : (
+              /* Tab 2: Members Content */
+              <motion.div
+                key="members-tab"
+                initial={{ opacity: 0, y: 8, filter: 'blur(3px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="flex-1 p-3 overflow-y-auto space-y-2 min-h-0"
+              >
+                <div className="text-[11px] font-semibold text-white/40 px-1 py-1 uppercase tracking-wider">
+                  Учасники в кімнаті ({room.members?.length || 1})
+                </div>
+
+                {room.members?.map((member: any) => {
+                  const isHost = member.userId === room.ownerId;
+                  const isMe = member.userId === user?.id;
+                  const u = member.user || {};
+
+                  return (
+                    <motion.div
+                      key={member.id || member.userId}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.985 }}
+                      onClick={() => setSelectedProfile({ ...u, isHost })}
+                      className="flex items-center justify-between p-3 rounded-[18px] ios-glass cursor-pointer hover:bg-white/[0.08] transition shadow-sm"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {u.avatarUrl ? (
+                          <img
+                            src={u.avatarUrl}
+                            alt=""
+                            className="w-10 h-10 rounded-[14px] object-cover shrink-0 ring-1 ring-white/15"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-[14px] bg-white/10 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                            {u.displayName?.charAt(0) || 'U'}
                           </div>
                         )}
 
-                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[82%]`}>
-                          {!isMe && (
-                            <button
-                              onClick={() => setSelectedProfile(msg.user)}
-                              className="text-[11px] text-white/40 mb-1 ml-1 font-medium hover:text-white transition text-left"
-                            >
-                              {msg.user.displayName}
-                            </button>
-                          )}
-                          <div
-                            className={`px-3.5 py-2 rounded-2xl text-[13px] leading-relaxed break-words ${
-                              isMe
-                                ? 'bg-[#007aff] text-white rounded-tr-xs shadow-sm font-normal'
-                                : 'ios-glass text-white/90 rounded-tl-xs'
-                            }`}
-                          >
-                            {msg.text}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] font-semibold text-white truncate">
+                              {u.displayName || 'Користувач'}
+                            </span>
+                            {isMe && (
+                              <span className="text-[10px] text-white/60 bg-white/10 px-1.5 py-0.2 rounded font-normal">
+                                ви
+                              </span>
+                            )}
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Quick Reactions Bar (iOS Floating Pills) */}
-              <div className="px-3 py-1.5 border-t border-white/[0.06] flex items-center justify-around bg-[#12141f]/90 backdrop-blur-md shrink-0">
-                {['❤️', '🔥', '😂', '🎉', '👍', '🍿'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => sendReaction(emoji)}
-                    className="w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/10 active:scale-125 transition flex items-center justify-center text-lg select-none"
-                    aria-label={`Реакція ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-
-              {/* Chat Input Bar */}
-              <form
-                onSubmit={sendChat}
-                className="p-2 sm:p-2.5 ios-glass-bottom flex items-center gap-2 shrink-0 pb-[max(8px,env(safe-area-inset-bottom))]"
-              >
-                <input
-                  type="text"
-                  placeholder="Повідомлення..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-white/[0.07] border border-white/10 focus:border-white/30 rounded-full px-4 py-2 text-xs sm:text-sm text-white placeholder-white/30 focus:outline-none transition"
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center shrink-0 transition active:scale-90 shadow-sm"
-                  aria-label="Надіслати"
-                >
-                  <svg
-                    className="w-4 h-4 translate-x-0.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.4}
-                      d="M5 12h14M12 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Tab 2: Members Content */}
-          {activeTab === 'members' && (
-            <div className="flex-1 p-3 overflow-y-auto space-y-2 min-h-0">
-              <div className="text-[11px] font-semibold text-white/40 px-1 py-1 uppercase tracking-wider">
-                Учасники в кімнаті ({room.members?.length || 1})
-              </div>
-
-              {room.members?.map((member: any) => {
-                const isHost = member.userId === room.ownerId;
-                const isMe = member.userId === user?.id;
-                const u = member.user || {};
-
-                return (
-                  <div
-                    key={member.id || member.userId}
-                    onClick={() => setSelectedProfile({ ...u, isHost })}
-                    className="flex items-center justify-between p-3 rounded-[18px] ios-glass cursor-pointer hover:bg-white/[0.08] active:scale-[0.99] transition shadow-sm"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {u.avatarUrl ? (
-                        <img
-                          src={u.avatarUrl}
-                          alt=""
-                          className="w-10 h-10 rounded-[14px] object-cover shrink-0 ring-1 ring-white/15"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-[14px] bg-white/10 text-white flex items-center justify-center text-xs font-semibold shrink-0">
-                          {u.displayName?.charAt(0) || 'U'}
-                        </div>
-                      )}
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[13px] font-semibold text-white truncate">
-                            {u.displayName || 'Користувач'}
-                          </span>
-                          {isMe && (
-                            <span className="text-[10px] text-white/60 bg-white/10 px-1.5 py-0.2 rounded font-normal">
-                              ви
+                          {u.username && (
+                            <span className="text-xs text-white/40 block leading-none mt-0.5">
+                              @{u.username}
                             </span>
                           )}
                         </div>
-                        {u.username && (
-                          <span className="text-xs text-white/40 block leading-none mt-0.5">
-                            @{u.username}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isHost && (
+                          <span className="text-[11px] font-medium text-amber-300 bg-amber-400/15 border border-amber-400/25 px-2.5 py-0.5 rounded-full">
+                            👑 Хост
                           </span>
                         )}
+                        <span className="text-white/30 text-sm font-light">›</span>
                       </div>
-                    </div>
+                    </motion.div>
+                  );
+                })}
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isHost && (
-                        <span className="text-[11px] font-medium text-amber-300 bg-amber-400/15 border border-amber-400/25 px-2.5 py-0.5 rounded-full">
-                          👑 Хост
-                        </span>
-                      )}
-                      <span className="text-white/30 text-sm font-light">›</span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="pt-4 flex flex-col gap-2.5">
-                <button
-                  onClick={openInviteModal}
-                  className="w-full py-3 px-4 rounded-full text-xs font-semibold bg-white text-black active:scale-95 transition flex items-center justify-center gap-1.5 shadow-md"
-                >
-                  <span>Покликати друзів у кімнату</span>
-                </button>
-                <button
-                  onClick={handleShareToTelegram}
-                  className="w-full py-3 px-4 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/15 active:scale-95 transition flex items-center justify-center gap-1.5"
-                >
-                  <span>Надіслати посилання в чат</span>
-                </button>
-              </div>
-            </div>
-          )}
+                <div className="pt-4 flex flex-col gap-2.5">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={openInviteModal}
+                    className="w-full py-3 px-4 rounded-full text-xs font-bold bg-white text-black active:scale-95 transition flex items-center justify-center gap-1.5 shadow-md"
+                  >
+                    <span>Покликати друзів у кімнату</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleShareToTelegram}
+                    className="w-full py-3 px-4 rounded-full text-xs font-semibold bg-white/10 text-white hover:bg-white/15 active:scale-95 transition flex items-center justify-center gap-1.5"
+                  >
+                    <span>Надіслати посилання в чат</span>
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
