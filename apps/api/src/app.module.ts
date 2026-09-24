@@ -27,22 +27,11 @@ import { APP_GUARD } from '@nestjs/core';
         const token = configService.get<string>('TELEGRAM_BOT_TOKEN');
         const isValidToken =
           token && token !== 'dummy_token' && token !== 'your_telegram_bot_token';
-
-        if (isValidToken) {
-          try {
-            // Delete any existing webhook to ensure Telegram delivers updates via polling
-            const { Telegraf } = await import('telegraf');
-            const tempBot = new Telegraf(token);
-            await tempBot.telegram.deleteWebhook({ drop_pending_updates: false });
-            console.log('✅ Cleaned up old Telegram webhook before launching polling');
-          } catch (e: any) {
-            console.warn('⚠️ Could not clean up webhook before launch:', e.message);
-          }
-        }
+        const usePolling = configService.get<string>('USE_POLLING') === 'true';
 
         return {
           token: token || 'dummy_token',
-          launchOptions: isValidToken ? { dropPendingUpdates: false } : false,
+          launchOptions: isValidToken && usePolling ? { dropPendingUpdates: false } : false,
         };
       },
       inject: [ConfigService],

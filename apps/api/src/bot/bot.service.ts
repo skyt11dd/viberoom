@@ -25,9 +25,6 @@ export class BotService implements OnModuleInit {
       const me = await this.bot.telegram.getMe();
       this.logger.log(`✅ Telegram bot connected as @${me.username} (${me.first_name})`);
 
-      // Clear any stale webhook to ensure long polling receives messages
-      await this.bot.telegram.deleteWebhook({ drop_pending_updates: false });
-      this.logger.log('✅ Webhook cleared, long-polling ready');
     } catch (err: any) {
       this.logger.error(`⚠️ Bot init warning: ${err.message}`);
     }
