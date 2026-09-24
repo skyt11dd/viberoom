@@ -392,7 +392,7 @@ export default function RoomPage() {
       </AnimatePresence>
 
       {/* ── Top Header (iOS Floating Glass) ── */}
-      <header className="h-14 px-3 sm:px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
+      <header className="pt-[max(56px,calc(env(safe-area-inset-top)+14px))] pb-3 px-3 sm:px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleLeaveRoom}

@@ -201,15 +201,45 @@ export default function Home() {
 
 
 
+        {/* ── Top Header with proper safe-area offset below Telegram controls ── */}
+        <header className="pt-[max(56px,calc(env(safe-area-inset-top)+14px))] pb-3 px-4 ios-glass-header flex items-center justify-between shrink-0 sticky top-0 z-20">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/logo.jpg"
+              alt="VIBEROOM"
+              width={28}
+              height={28}
+              className="rounded-[8px] ring-1 ring-white/10 shadow-sm"
+            />
+            <span className="text-[15px] font-bold tracking-tight text-white">
+              VIBEROOM
+            </span>
+          </div>
+
+          {user && (
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setNewRoomTitle(`Кімната ${user.displayName}`);
+                setShowCreateModal(true);
+              }}
+              className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-sm flex items-center gap-1"
+            >
+              <span className="text-sm font-bold leading-none">+</span>
+              <span>Створити</span>
+            </button>
+          )}
+        </header>
+
         {/* Loading state for auth */}
         {authLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10 pt-[max(64px,calc(env(safe-area-inset-top)+20px))]">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10">
             <div className="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
             <p className="text-xs text-white/40 font-medium">Підключення до VIBEROOM...</p>
           </div>
         ) : !user ? (
           /* Not logged in / Auth error state */
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10 max-w-sm mx-auto pt-[max(64px,calc(env(safe-area-inset-top)+20px))]">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10 max-w-sm mx-auto">
             <Image
               src="/logo.jpg"
               alt="VIBEROOM"
@@ -240,7 +270,7 @@ export default function Home() {
           </div>
         ) : (
           /* Authenticated Dashboard */
-          <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full pt-[max(64px,calc(env(safe-area-inset-top)+20px))] pb-28 z-10">
+          <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full pb-16 z-10">
             {/* User Profile Card (iOS Squircle Style) */}
             <div className="p-3.5 rounded-[22px] ios-glass mb-4 flex items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-3 min-w-0">
@@ -534,45 +564,6 @@ export default function Home() {
               </div>
             )}
           </main>
-        )}
-
-        {/* ── Bottom Floating Dock: VIBEROOM Logo + Create Button ── */}
-        {user && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 p-3 pb-[max(14px,env(safe-area-inset-bottom))] pointer-events-none">
-            <div className="max-w-md mx-auto ios-glass-elevated rounded-[24px] px-4 py-2.5 flex items-center justify-between pointer-events-auto shadow-2xl border border-white/15">
-              {/* Left: VIBEROOM Logo & Branding */}
-              <div className="flex items-center gap-2.5">
-                <Image
-                  src="/logo.jpg"
-                  alt="VIBEROOM"
-                  width={32}
-                  height={32}
-                  className="rounded-[10px] ring-1 ring-white/15 shadow-sm"
-                />
-                <div>
-                  <span className="text-[14px] font-bold tracking-tight text-white block leading-tight">
-                    VIBEROOM
-                  </span>
-                  <span className="text-[10px] text-white/45 font-medium tracking-wider uppercase block">
-                    mini app
-                  </span>
-                </div>
-              </div>
-
-              {/* Right: + Створити Button */}
-              <button
-                onClick={() => {
-                  triggerHaptic('light');
-                  setNewRoomTitle(`Кімната ${user.displayName}`);
-                  setShowCreateModal(true);
-                }}
-                className="px-4 py-2 rounded-full text-xs font-bold bg-white text-black hover:bg-white/90 active:scale-95 transition shadow-md flex items-center gap-1.5"
-              >
-                <span className="text-base font-black leading-none">+</span>
-                <span>Створити</span>
-              </button>
-            </div>
-          </div>
         )}
       </div>
 
